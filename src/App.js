@@ -10,6 +10,7 @@ import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SkillProvider } from './contexts/SkillContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { LessonProvider } from './contexts/LessonContext';
 
 // Icons for sidebar
 const MenuIcon = () => (
@@ -278,7 +279,9 @@ function App() {
     <AuthProvider>
       <SkillProvider>
         <ChatProvider>
-          <AppContent />
+          <LessonProvider>
+            <AppContent />
+          </LessonProvider>
         </ChatProvider>
       </SkillProvider>
     </AuthProvider>

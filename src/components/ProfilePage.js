@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSkill } from '../contexts/SkillContext';
+import { initializeDatabase, checkUserLessons } from '../utils/databaseInit';
 
 function ProfilePage({ setPage }) {
   const { currentUser, getUserProfile } = useAuth();
@@ -12,8 +13,10 @@ function ProfilePage({ setPage }) {
   const [newSkill, setNewSkill] = useState({ name: '', level: 'Beginner' });
   const [addingSkill, setAddingSkill] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [hasLessons, setHasLessons] = useState(true);
+  const [initializingDb, setInitializingDb] = useState(false);
   
-  // Fetch user profile data
+  // Fetch user profile data and check if user has lessons
   useEffect(() => {
     async function loadProfile() {
       if (currentUser) {
@@ -22,6 +25,10 @@ function ProfilePage({ setPage }) {
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
           setBioText(userProfile.bio || '');
+          
+          // Check if user has any lessons
+          const hasUserLessons = await checkUserLessons(currentUser);
+          setHasLessons(hasUserLessons);
         } catch (error) {
           console.error('Error loading profile:', error);
         } finally {
@@ -32,6 +39,21 @@ function ProfilePage({ setPage }) {
     
     loadProfile();
   }, [currentUser, getUserProfile]);
+  
+  // Handle initializing the database with sample data
+  const handleInitializeDatabase = async () => {
+    if (!currentUser) return;
+    
+    setInitializingDb(true);
+    try {
+      await initializeDatabase(currentUser);
+      setHasLessons(true);
+    } catch (error) {
+      console.error('Error initializing database:', error);
+    } finally {
+      setInitializingDb(false);
+    }
+  };
   
   // Handle saving bio
   const handleSaveBio = async () => {
@@ -105,6 +127,44 @@ function ProfilePage({ setPage }) {
   return (
     <div className="fade-in" style={{ maxWidth: 800, margin: '1rem auto' }}>
       {/* Profile Header */}
+      {/* Database initialization banner (only shown if user has no lessons) */}
+      {!hasLessons && (
+        <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+          <div style={{ 
+            background: 'rgba(255, 143, 0, 0.1)', 
+            borderRadius: '8px', 
+            padding: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <div style={{ color: 'var(--primary)', fontWeight: '500', marginBottom: '5px' }}>
+                Initialize Demo Data
+              </div>
+              <div style={{ color: '#aaa', fontSize: '14px' }}>
+                Create sample lessons and users to test the real-time lesson functionality.
+              </div>
+            </div>
+            <button 
+              onClick={handleInitializeDatabase}
+              disabled={initializingDb}
+              style={{ 
+                background: 'var(--primary)', 
+                color: 'black',
+                border: 'none',
+                padding: '8px 15px',
+                borderRadius: '5px',
+                cursor: initializingDb ? 'not-allowed' : 'pointer',
+                opacity: initializingDb ? 0.7 : 1
+              }}
+            >
+              {initializingDb ? 'Initializing...' : 'Initialize Data'}
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="card" style={{ padding: '30px', marginBottom: '20px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ 
           position: 'absolute', 

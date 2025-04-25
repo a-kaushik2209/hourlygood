@@ -1,0 +1,258 @@
+        {/* How Lessons Work Section */}
+        <div className="card" style={{ padding: '30px' }}>
+          <h3 style={{ color: 'var(--primary)', marginBottom: '20px' }}>How Lessons Work</h3>
+          
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+            <div style={{ flex: '1 1 200px', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+              <div style={{ 
+                minWidth: '30px', 
+                height: '30px', 
+                borderRadius: '50%', 
+                background: 'var(--primary)', 
+                color: 'black', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontWeight: 'bold'
+              }}>1</div>
+              <div>
+                <div style={{ fontWeight: '500', color: '#ddd', marginBottom: '5px' }}>Schedule</div>
+                <div style={{ color: '#aaa', fontSize: '14px' }}>Coordinate with your teacher or student to set a date and time for your 1-hour lesson.</div>
+              </div>
+            </div>
+            
+            <div style={{ flex: '1 1 200px', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+              <div style={{ 
+                minWidth: '30px', 
+                height: '30px', 
+                borderRadius: '50%', 
+                background: 'var(--primary)', 
+                color: 'black', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontWeight: 'bold'
+              }}>2</div>
+              <div>
+                <div style={{ fontWeight: '500', color: '#ddd', marginBottom: '5px' }}>Attend</div>
+                <div style={{ color: '#aaa', fontSize: '14px' }}>Meet in person or virtually for your lesson at the scheduled time.</div>
+              </div>
+            </div>
+            
+            <div style={{ flex: '1 1 200px', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+              <div style={{ 
+                minWidth: '30px', 
+                height: '30px', 
+                borderRadius: '50%', 
+                background: 'var(--primary)', 
+                color: 'black', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontWeight: 'bold'
+              }}>3</div>
+              <div>
+                <div style={{ fontWeight: '500', color: '#ddd', marginBottom: '5px' }}>Complete</div>
+                <div style={{ color: '#aaa', fontSize: '14px' }}>After the lesson, mark it as completed and leave feedback for your partner.</div>
+              </div>
+            </div>
+            
+            <div style={{ flex: '1 1 200px', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+              <div style={{ 
+                minWidth: '30px', 
+                height: '30px', 
+                borderRadius: '50%', 
+                background: 'var(--primary)', 
+                color: 'black', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontWeight: 'bold'
+              }}>4</div>
+              <div>
+                <div style={{ fontWeight: '500', color: '#ddd', marginBottom: '5px' }}>Exchange</div>
+                <div style={{ color: '#aaa', fontSize: '14px' }}>Time credits are automatically transferred from student to teacher upon completion.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1e1e1e',
+            borderRadius: '8px',
+            padding: '25px',
+            width: '90%',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ color: 'var(--primary)', marginBottom: '20px' }}>Complete Lesson</h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '10px', color: '#ddd' }}>How would you rate this lesson?</div>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <svg 
+                    key={star}
+                    xmlns="http://www.w3.org/2000/svg" 
+                    width="30" 
+                    height="30" 
+                    viewBox="0 0 24 24" 
+                    fill={star <= feedbackData.rating ? 'var(--primary)' : 'none'} 
+                    stroke={star <= feedbackData.rating ? 'var(--primary)' : '#aaa'} 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
+                  >
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                ))}
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '10px', color: '#ddd' }}>Feedback (optional)</div>
+              <textarea 
+                value={feedbackData.feedback}
+                onChange={(e) => setFeedbackData({ ...feedbackData, feedback: e.target.value })}
+                style={{
+                  width: '100%',
+                  background: '#252525',
+                  border: '1px solid #333',
+                  borderRadius: '5px',
+                  padding: '10px',
+                  color: '#ddd',
+                  minHeight: '100px',
+                  resize: 'vertical'
+                }}
+                placeholder="Share your experience with this lesson..."
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowFeedbackModal(false)}
+                style={{ 
+                  background: '#333', 
+                  color: '#ddd',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: '5px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSubmitFeedback}
+                style={{ 
+                  background: '#4caf50', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                Complete Lesson
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Cancel Modal */}
+      {showCancelModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1e1e1e',
+            borderRadius: '8px',
+            padding: '25px',
+            width: '90%',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ color: '#f44336', marginBottom: '20px' }}>Cancel Lesson</h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '10px', color: '#ddd' }}>Reason for cancellation</div>
+              <textarea 
+                value={cancelData.reason}
+                onChange={(e) => setCancelData({ ...cancelData, reason: e.target.value })}
+                style={{
+                  width: '100%',
+                  background: '#252525',
+                  border: '1px solid #333',
+                  borderRadius: '5px',
+                  padding: '10px',
+                  color: '#ddd',
+                  minHeight: '100px',
+                  resize: 'vertical'
+                }}
+                placeholder="Please provide a reason for cancelling this lesson..."
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowCancelModal(false)}
+                style={{ 
+                  background: '#333', 
+                  color: '#ddd',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: '5px',
+                  cursor: 'pointer'
+                }}
+              >
+                Go Back
+              </button>
+              <button 
+                onClick={handleSubmitCancel}
+                style={{ 
+                  background: '#f44336', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 15px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel Lesson
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SkillLessons;

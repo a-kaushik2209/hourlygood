@@ -15,7 +15,6 @@ function ChatPage({ setPage }) {
   
   const messagesEndRef = useRef(null);
   
-  // Scroll to bottom of messages when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
