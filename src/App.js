@@ -9,6 +9,7 @@ import ProfilePage from './components/ProfilePage';
 import LoginPage from './components/LoginPage';
 import ChatPage from './components/ChatPage';
 import UserProfilePage from './components/UserProfilePage'; // Import UserProfilePage
+import LessonCompletionNotification from './components/LessonCompletionNotification'; // Import the new component
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SkillProvider } from './contexts/SkillContext';
@@ -96,7 +97,7 @@ const LogoutIcon = () => (
 );
 
 function AppContent() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, getUserProfile, isNewSignup, clearNewSignupFlag } = useAuth();
   const [page, setPage] = useState('landing');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMenuTooltip, setShowMenuTooltip] = useState(true); // Show tooltip for new users
@@ -105,6 +106,10 @@ function AppContent() {
   const [viewUserId, setViewUserId] = useState(null);
   const [timeCredits, setTimeCredits] = useState(0); // Default value
   const [isLoading, setIsLoading] = useState(true); // Add loading state
+  
+  // State for signup bonus animation
+  const [showBonusAnimation, setShowBonusAnimation] = useState(false);
+  const [animationStep, setAnimationStep] = useState(0);
   
   // Set profile based on authenticated user and handle initial page loading
   useEffect(() => {
@@ -147,6 +152,34 @@ function AppContent() {
     }
   }, [currentUser]);
 
+  // Effect for handling new signup animation
+  useEffect(() => {
+    if (isNewSignup && currentUser) {
+      setShowBonusAnimation(true);
+      
+      // Animation sequence
+      setAnimationStep(1);
+      const timer1 = setTimeout(() => {
+        setAnimationStep(2);
+        
+        const timer2 = setTimeout(() => {
+          setAnimationStep(3);
+          
+          const timer3 = setTimeout(() => {
+            setShowBonusAnimation(false);
+            clearNewSignupFlag(); // Clear the flag after animation
+          }, 1500);
+          
+          return () => clearTimeout(timer3);
+        }, 1500);
+        
+        return () => clearTimeout(timer2);
+      }, 1500);
+      
+      return () => clearTimeout(timer1);
+    }
+  }, [isNewSignup, currentUser, clearNewSignupFlag]);
+  
   // Handle navigation between pages
   const handleNavigation = (targetPage, params = null) => {
     setPage(targetPage);
@@ -290,6 +323,109 @@ function AppContent() {
             </div>
           </div>
         )}
+        
+        {/* Signup Bonus Animation */}
+        {showBonusAnimation && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999
+          }}>
+            <div style={{
+              backgroundColor: '#1a1a1a',
+              borderRadius: '20px',
+              padding: '2rem',
+              textAlign: 'center',
+              boxShadow: '0 0 30px rgba(255, 215, 0, 0.7)',
+              maxWidth: '90%',
+              width: '400px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Step 1: Welcome */}
+              {animationStep >= 1 && (
+                <div style={{
+                  opacity: animationStep === 1 ? 1 : 0.3,
+                  transition: 'opacity 0.5s ease',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{
+                    fontSize: '5rem',
+                    marginBottom: '1rem'
+                  }}>
+                    🎉
+                  </div>
+                  <h1 style={{
+                    color: 'white',
+                    fontSize: '2rem',
+                    margin: '0.5rem 0'
+                  }}>
+                    Welcome to HourlyGood!
+                  </h1>
+                </div>
+              )}
+              
+              {/* Step 2: Bonus Credits */}
+              {animationStep >= 2 && (
+                <div style={{
+                  opacity: animationStep === 2 ? 1 : 0.3,
+                  transition: 'opacity 0.5s ease',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{
+                    backgroundColor: 'var(--primary)',
+                    padding: '1rem 2rem',
+                    borderRadius: '50px',
+                    margin: '1.5rem auto',
+                    display: 'inline-block',
+                    boxShadow: '0 0 20px var(--primary)',
+                    animation: 'pulse 1s infinite'
+                  }}>
+                    <span style={{
+                      fontSize: '1.8rem',
+                      fontWeight: 'bold',
+                      color: 'black'
+                    }}>
+                      +2 Time Credits
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Step 3: Get Started */}
+              {animationStep >= 3 && (
+                <div style={{
+                  opacity: animationStep === 3 ? 1 : 0.3,
+                  transition: 'opacity 0.5s ease'
+                }}>
+                  <p style={{
+                    color: 'white',
+                    fontSize: '1.2rem',
+                    margin: '1rem 0'
+                  }}>
+                    Your signup bonus has been added!
+                  </p>
+                  <p style={{
+                    color: '#aaa',
+                    fontSize: '1rem'
+                  }}>
+                    Start exploring now...
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Lesson Completion Notification for Rating */}
+        {currentUser && <LessonCompletionNotification />}
         
         {isLoading ? (
           <div className="loading-container" style={{

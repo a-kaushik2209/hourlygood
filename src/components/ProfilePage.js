@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSkill } from '../contexts/SkillContext';
 import { useLesson } from '../contexts/LessonContext';
+import { useChat } from '../contexts/ChatContext';
 import { initializeDatabase, checkUserLessons } from '../utils/databaseInit';
 import UserRatings from './UserRatings';
 import SkillProofs from './SkillProofs';
@@ -13,6 +14,7 @@ function ProfilePage({ setPage }) {
   const { currentUser, getUserProfile } = useAuth();
   const { addSkill, updateBio, myRequests, myLessons, uploadSkillProof, getUserRatings } = useSkill();
   const { upcomingLessons, completedLessons, activeLessons } = useLesson();
+  const { createChat } = useChat();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bioText, setBioText] = useState('');
@@ -27,6 +29,7 @@ function ProfilePage({ setPage }) {
   const [skillProofFile, setSkillProofFile] = useState(null);
   const [userRatings, setUserRatings] = useState(null);
   const [loadingRatings, setLoadingRatings] = useState(false);
+  const [chatLoading, setChatLoading] = useState({});
   
   // Fetch user profile data and check if user has lessons
   useEffect(() => {
@@ -92,6 +95,28 @@ function ProfilePage({ setPage }) {
       setEditingBio(false);
     } catch (error) {
       console.error('Error updating bio:', error);
+    }
+  };
+  
+  // Handle starting a chat with a user
+  const handleStartChat = async (lessonId, recipientId) => {
+    if (!currentUser || !recipientId) return;
+    
+    // Update loading state for this specific lesson
+    setChatLoading(prev => ({ ...prev, [lessonId]: true }));
+    
+    try {
+      // Create or get existing chat
+      const chatId = await createChat(recipientId);
+      
+      // Navigate to chat page with this chat active
+      setPage('chat', { chatId });
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      alert('Failed to start chat. Please try again.');
+    } finally {
+      // Clear loading state
+      setChatLoading(prev => ({ ...prev, [lessonId]: false }));
     }
   };
   
@@ -745,7 +770,8 @@ function ProfilePage({ setPage }) {
                       </div>
                       <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                         <button 
-                          onClick={() => setPage('chat', { recipientId: lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId })}
+                          onClick={() => handleStartChat(lesson.id, lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                          disabled={chatLoading[lesson.id]}
                           style={{ 
                             background: 'transparent', 
                             border: '1px solid #444', 
@@ -753,16 +779,29 @@ function ProfilePage({ setPage }) {
                             padding: '5px 10px', 
                             borderRadius: '4px',
                             fontSize: '12px',
-                            cursor: 'pointer',
+                            cursor: chatLoading[lesson.id] ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '5px'
+                            gap: '5px',
+                            opacity: chatLoading[lesson.id] ? 0.7 : 1
                           }}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                          </svg>
-                          Message
+                          {chatLoading[lesson.id] ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M16 12a4 4 0 1 1-8 0"></path>
+                              </svg>
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                              Message
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -824,7 +863,8 @@ function ProfilePage({ setPage }) {
                       </div>
                       <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
                         <button 
-                          onClick={() => setPage('chat', { recipientId: lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId })}
+                          onClick={() => handleStartChat(lesson.id, lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                          disabled={chatLoading[lesson.id]}
                           style={{ 
                             background: 'transparent', 
                             border: '1px solid #444', 
@@ -832,16 +872,29 @@ function ProfilePage({ setPage }) {
                             padding: '5px 10px', 
                             borderRadius: '4px',
                             fontSize: '12px',
-                            cursor: 'pointer',
+                            cursor: chatLoading[lesson.id] ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '5px'
+                            gap: '5px',
+                            opacity: chatLoading[lesson.id] ? 0.7 : 1
                           }}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                          </svg>
-                          Message
+                          {chatLoading[lesson.id] ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M16 12a4 4 0 1 1-8 0"></path>
+                              </svg>
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                              </svg>
+                              Message
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

@@ -235,7 +235,7 @@ function SkillMarketplace({ setPage }) {
                     {request.requesterName ? request.requesterName.charAt(0).toUpperCase() : '?'}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 'bold', color: '#ddd' }}>{request.requesterName || 'Anonymous'}</div>
+                    <div style={{ fontWeight: 'bold', color: '#ddd' }}>{request.requesterName || (request.requesterId ? `User-${request.requesterId.substring(0, 4)}` : 'User')}</div>
                     <div style={{ fontSize: '12px', color: '#aaa' }}>
                       {new Date(request.createdAt?.seconds * 1000).toLocaleDateString()}
                     </div>
@@ -278,7 +278,7 @@ function SkillMarketplace({ setPage }) {
                     textUnderlineOffset: '2px'
                   }}
                 >
-                  {request.requesterName}
+                  {request.requesterName || (request.requesterId ? `User-${request.requesterId.substring(0, 4)}` : 'User')}
                 </span>
                 <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

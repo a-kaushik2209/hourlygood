@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import './LoginPage.css';
 
 function LoginPage({ setPage }) {
   const { signup, login, error: authError } = useAuth();
@@ -50,13 +51,14 @@ function LoginPage({ setPage }) {
     setLoading(true);
     
     try {
+      // The signup function in AuthContext now sets the isNewSignup flag
       await signup(email, password, name);
+      // Navigate to home page - the animation will be shown there
       setPage('home');
     } catch (err) {
       setError('Failed to create account: ' + err.message);
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
   
   const toggleForm = () => {

@@ -19,6 +19,7 @@ function ChatPage({ setPage, pageParams }) {
     onlineUsers,
     sendTypingIndicator,
     sendStopTypingIndicator,
+    createChat,
     loading: chatLoading 
   } = useChat();
   const { completeLesson } = useSkill();
@@ -38,21 +39,17 @@ function ChatPage({ setPage, pageParams }) {
     }
   }, [messages]);
   
-  // Get the current chat details
   const currentChat = chats.find(chat => chat.id === activeChat);
   
-  // Real-time messages listener
   useEffect(() => {
     if (!activeChat) return;
     
-    // Create a query for messages in the current chat, ordered by timestamp
     const messagesQuery = query(
       collection(db, 'messages'),
       where('chatId', '==', activeChat),
       orderBy('createdAt', 'asc')
     );
     
-    // Set up real-time listener
     const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const newMessages = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -60,12 +57,10 @@ function ChatPage({ setPage, pageParams }) {
         createdAt: doc.data().createdAt?.toDate() || new Date()
       }));
       
-      // Mark messages as read if they're from the other user
       if (newMessages.length > 0 && currentUser) {
         markChatAsRead(activeChat);
       }
       
-      // Scroll to bottom on new messages
       setTimeout(() => {
         if (messagesEndRef.current) {
           messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -78,7 +73,6 @@ function ChatPage({ setPage, pageParams }) {
     return () => unsubscribe();
   }, [activeChat, currentUser, markChatAsRead]);
   
-  // Handle sending a message
   const handleSendMessage = useCallback(async (e) => {
     e.preventDefault();
     if (messageText.trim() === '' || !activeChat || !currentUser) return;
@@ -86,12 +80,10 @@ function ChatPage({ setPage, pageParams }) {
     setSending(true);
     setError('');
     
-    // Store message text and clear input immediately for better UX
     const messageToSend = messageText.trim();
     setMessageText('');
     
     try {
-      // Clear typing indicator
       if (isTyping) {
         sendStopTypingIndicator(activeChat);
         setIsTyping(false);
@@ -101,10 +93,8 @@ function ChatPage({ setPage, pageParams }) {
         }
       }
       
-      // Send the message
       await sendMessage(activeChat, messageToSend);
       
-      // Scroll to bottom immediately
       if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
@@ -116,7 +106,6 @@ function ChatPage({ setPage, pageParams }) {
     }
   }, [activeChat, currentUser, isTyping, messageText, sendMessage, sendStopTypingIndicator]);
   
-  // Handle typing indicator
   const handleTyping = (e) => {
     setMessageText(e.target.value);
     
@@ -125,12 +114,10 @@ function ChatPage({ setPage, pageParams }) {
       sendTypingIndicator(activeChat);
     }
     
-    // Clear previous timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    // Set new timeout to stop typing indicator after 2 seconds of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       if (isTyping && activeChat) {
         sendStopTypingIndicator(activeChat);
@@ -139,7 +126,6 @@ function ChatPage({ setPage, pageParams }) {
     }, 2000);
   };
   
-  // Handle marking a lesson as complete
   const handleMarkComplete = async (requestId) => {
     if (!requestId || !currentUser) return;
     
@@ -157,7 +143,6 @@ function ChatPage({ setPage, pageParams }) {
     }
   };
   
-  // Handle selecting a chat
   const handleSelectChat = (chatId) => {
     setActiveChat(chatId);
     // Mark as read when selected
@@ -189,26 +174,54 @@ function ChatPage({ setPage, pageParams }) {
   // Check if someone is typing in the current chat
   const isOtherUserTyping = currentChat && Object.keys(typingUsers).length > 0;
 
-  // Check if there's a recipient ID or chatId in the page params and set active chat
+  // Handle creating a new chat if needed or selecting an existing one
   useEffect(() => {
-    if (pageParams && chats.length > 0) {
-      // If chatId is directly provided, use it
-      if (pageParams.chatId) {
-        handleSelectChat(pageParams.chatId);
-      }
-      // Otherwise, try to find chat with the recipient
-      else if (pageParams.recipientId) {
-        // Find chat with this recipient
-        const chat = chats.find(c => 
-          (c.participants[0] === pageParams.recipientId || c.participants[1] === pageParams.recipientId)
-        );
-        
-        if (chat) {
-          handleSelectChat(chat.id);
+    if (!pageParams || !currentUser) return;
+    
+    const initializeChat = async () => {
+      try {
+        // If chatId is directly provided, use it
+        if (pageParams.chatId) {
+          handleSelectChat(pageParams.chatId);
+          return;
         }
+        
+        // If recipientId is provided, find or create chat
+        if (pageParams.recipientId) {
+          // First check if chat already exists
+          const existingChat = chats.find(c => 
+            c.participants.includes(pageParams.recipientId) && c.participants.includes(currentUser.uid)
+          );
+          
+          if (existingChat) {
+            handleSelectChat(existingChat.id);
+            return;
+          }
+          
+          // If no existing chat, create a new one
+          if (chats.length === 0 || !existingChat) {
+            // Create new chat with this recipient
+            const newChatId = await createChat(pageParams.recipientId);
+            handleSelectChat(newChatId);
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        setError('Failed to initialize chat. Please try again.');
       }
+    };
+    
+    initializeChat();
+  }, [pageParams, chats, currentUser, createChat]);
+  
+  // Scroll to bottom when messages change or when active chat changes
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
-  }, [pageParams, chats]);
+  }, [messages, activeChat]);
 
   return (
     <div className="fade-in" style={{ maxWidth: 1200, margin: '1rem auto' }}>
@@ -537,49 +550,67 @@ function ChatPage({ setPage, pageParams }) {
                       style={{ 
                         marginBottom: '20px',
                         display: 'flex',
-                        flexDirection: message.senderId === currentUser.uid ? 'row-reverse' : 'row'
+                        flexDirection: message.senderId === 'system' ? 'row' : (message.senderId === currentUser?.uid ? 'row-reverse' : 'row')
                       }}
                     >
-                      <div style={{ 
-                        maxWidth: '70%',
-                        background: message.senderId === currentUser.uid ? 'var(--primary)' : '#252525',
-                        color: message.senderId === currentUser.uid ? 'black' : '#fff',
-                        padding: '12px 16px',
-                        borderRadius: '18px',
-                        borderBottomLeftRadius: message.senderId === currentUser.uid ? '18px' : '4px',
-                        borderBottomRightRadius: message.senderId === currentUser.uid ? '4px' : '18px',
-                        position: 'relative'
-                      }}>
-                        <div style={{ marginBottom: '5px' }}>{message.text}</div>
+                      {message.senderId === 'system' ? (
                         <div style={{ 
-                          fontSize: '11px', 
-                          opacity: 0.7, 
-                          textAlign: message.senderId === currentUser.uid ? 'right' : 'left',
-                          marginTop: '2px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: message.senderId === currentUser.uid ? 'flex-end' : 'flex-start',
-                          gap: '4px'
+                          maxWidth: '90%',
+                          margin: '0 auto',
+                          background: '#333',
+                          color: '#aaa',
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          textAlign: 'center'
                         }}>
-                          {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                          
-                          {/* Read status for sent messages */}
-                          {message.senderId === currentUser.uid && (
-                            <span title={message.read ? "Read" : "Delivered"}>
-                              {message.read ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M18 6L9.7 16.4l-4.6-5"></path>
-                                </svg>
-                              ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="9 11 12 14 22 4"></polyline>
-                                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                                </svg>
-                              )}
-                            </span>
-                          )}
+                          <div>{message.text}</div>
+                          <div style={{ fontSize: '10px', marginTop: '4px' }}>
+                            {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ 
+                          maxWidth: '70%',
+                          background: message.senderId === currentUser?.uid ? 'var(--primary)' : '#252525',
+                          color: message.senderId === currentUser?.uid ? 'black' : '#fff',
+                          padding: '12px 16px',
+                          borderRadius: '18px',
+                          borderBottomLeftRadius: message.senderId === currentUser?.uid ? '18px' : '4px',
+                          borderBottomRightRadius: message.senderId === currentUser?.uid ? '4px' : '18px',
+                          position: 'relative'
+                        }}>
+                          <div style={{ marginBottom: '5px' }}>{message.text}</div>
+                          <div style={{ 
+                            fontSize: '11px', 
+                            opacity: 0.7, 
+                            textAlign: message.senderId === currentUser?.uid ? 'right' : 'left',
+                            marginTop: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: message.senderId === currentUser?.uid ? 'flex-end' : 'flex-start',
+                            gap: '4px'
+                          }}>
+                            {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                            
+                            {/* Read status for sent messages */}
+                            {message.senderId === currentUser?.uid && (
+                              <span title={message.read ? "Read" : "Delivered"}>
+                                {message.read ? (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M18 6L9.7 16.4l-4.6-5"></path>
+                                  </svg>
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="9 11 12 14 22 4"></polyline>
+                                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                  </svg>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                   

@@ -36,10 +36,27 @@ export function SkillProvider({ children }) {
   async function createSkillRequest(requestData) {
     try {
       setError('');
+      
+      // Get the user's profile to get their name
+      let requesterName = currentUser.displayName || currentUser.email || 'User';
+      
+      try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          requesterName = userData.name || userData.displayName || currentUser.displayName || currentUser.email || 'User';
+        }
+      } catch (profileError) {
+        console.error('Error getting user profile:', profileError);
+        // Continue with the available name if there's an error
+      }
+      
       const newRequest = {
         ...requestData,
         requesterId: currentUser.uid,
-        requesterName: currentUser.displayName,
+        requesterName: requesterName,
         status: 'open',
         createdAt: serverTimestamp(),
         tutorId: null,
@@ -69,10 +86,26 @@ export function SkillProvider({ children }) {
       const requestData = requestSnap.data();
       const requesterId = requestData.requesterId;
       
+      // Get the tutor's name from their profile
+      let tutorName = currentUser.displayName || currentUser.email || 'Tutor';
+      
+      try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          tutorName = userData.name || userData.displayName || currentUser.displayName || currentUser.email || 'Tutor';
+        }
+      } catch (profileError) {
+        console.error('Error getting tutor profile:', profileError);
+        // Continue with the available name if there's an error
+      }
+      
       // Update the request with tutor info
       await updateDoc(requestRef, {
         tutorId: currentUser.uid,
-        tutorName: currentUser.displayName,
+        tutorName: tutorName,
         status: 'accepted',
         acceptedAt: serverTimestamp()
       });

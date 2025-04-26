@@ -170,29 +170,52 @@ export function ChatProvider({ children }) {
       const recipientSnap = await getDoc(recipientRef);
       
       let recipientName = recipientId;
+      let recipientData = {};
       if (recipientSnap.exists()) {
-        const userData = recipientSnap.data();
-        recipientName = userData.name || userData.displayName || userData.email || recipientId;
+        recipientData = recipientSnap.data();
+        recipientName = recipientData.name || recipientData.displayName || recipientData.email || recipientId;
+      }
+      
+      // Get current user details
+      const currentUserRef = doc(db, 'users', currentUser.uid);
+      const currentUserSnap = await getDoc(currentUserRef);
+      let currentUserName = currentUser.displayName || currentUser.email || currentUser.uid;
+      if (currentUserSnap.exists()) {
+        const userData = currentUserSnap.data();
+        currentUserName = userData.name || userData.displayName || userData.email || currentUser.uid;
       }
       
       // Create new chat
       const newChat = {
         participants: [currentUser.uid, recipientId],
         participantNames: {
-          [currentUser.uid]: currentUser.displayName || currentUser.email || currentUser.uid,
+          [currentUser.uid]: currentUserName,
           [recipientId]: recipientName
         },
         createdAt: serverTimestamp(),
         lastMessage: 'Chat started',
         lastMessageTime: serverTimestamp(),
-        lastMessageSenderId: currentUser.uid
+        lastMessageSenderId: currentUser.uid,
+        unreadBy: [recipientId] // Mark as unread for the recipient
       };
       
       const chatRef = await addDoc(collection(db, 'chats'), newChat);
+      
+      // Add initial system message
+      await addDoc(collection(db, 'messages'), {
+        chatId: chatRef.id,
+        senderId: 'system',
+        senderName: 'System',
+        text: `Chat started between ${currentUserName} and ${recipientName}`,
+        createdAt: serverTimestamp(),
+        read: false
+      });
+      
       setActiveChat(chatRef.id);
       
       return chatRef.id;
     } catch (err) {
+      console.error('Error creating chat:', err);
       setError(err.message);
       throw err;
     }

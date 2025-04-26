@@ -88,7 +88,8 @@ export function LessonProvider({ children }) {
         status: 'completed',
         completedAt: serverTimestamp(),
         feedback: feedbackData.feedback,
-        rating: feedbackData.rating
+        rating: feedbackData.rating,
+        studentRated: false
       });
       
       // Award time credit to the teacher

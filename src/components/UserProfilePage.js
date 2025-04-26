@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSkill } from '../contexts/SkillContext';
+import { useChat } from '../contexts/ChatContext';
 import UserRatings from './UserRatings';
 import SkillProofs from './SkillProofs';
 
 function UserProfilePage({ userId, setPage, onRequestLesson }) {
-  const { getUserProfile } = useAuth();
+  const { getUserProfile, currentUser } = useAuth();
   const { getUserRatings } = useSkill();
+  const { createChat } = useChat();
   const [profile, setProfile] = useState(null);
   const [ratings, setRatings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [loadingRatings, setLoadingRatings] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
 
   // Fetch user profile when userId changes
   useEffect(() => {
@@ -58,6 +61,35 @@ function UserProfilePage({ userId, setPage, onRequestLesson }) {
         id: userId,
         name: profile.name || profile.displayName || userId
       }, skillName);
+    }
+  };
+  
+  // Handle starting a chat with this user
+  const handleStartChat = async () => {
+    if (!currentUser) {
+      // Redirect to login if not authenticated
+      setPage('login');
+      return;
+    }
+    
+    if (userId === currentUser.uid) {
+      // Can't chat with yourself
+      alert('You cannot start a chat with yourself.');
+      return;
+    }
+    
+    setChatLoading(true);
+    try {
+      // Create or get existing chat
+      const chatId = await createChat(userId);
+      
+      // Navigate to chat page with this chat active
+      setPage('chat', { chatId });
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      alert('Failed to start chat. Please try again.');
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -139,24 +171,39 @@ function UserProfilePage({ userId, setPage, onRequestLesson }) {
           </button>
           <button 
             className="chat-button" 
-            onClick={() => setPage('chat', { recipientId: userId })}
+            onClick={handleStartChat}
+            disabled={chatLoading || !currentUser}
             style={{
-              background: '#4a5568',
+              background: chatLoading ? '#2d3748' : '#4a5568',
               color: 'white',
               border: 'none',
               padding: '10px 15px',
               borderRadius: '8px',
-              cursor: 'pointer',
+              cursor: chatLoading || !currentUser ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              marginLeft: '10px'
+              marginLeft: '10px',
+              opacity: chatLoading || !currentUser ? 0.7 : 1,
+              transition: 'all 0.2s ease'
             }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            Chat
+            {chatLoading ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M16 12a4 4 0 1 1-8 0"></path>
+                </svg>
+                Connecting...
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Chat
+              </>
+            )}
           </button>
         </div>
       </div>

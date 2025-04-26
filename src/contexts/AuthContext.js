@@ -19,6 +19,7 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isNewSignup, setIsNewSignup] = useState(false); // Flag for new signup
 
   async function signup(email, password, name) {
     try {
@@ -41,6 +42,9 @@ export function AuthProvider({ children }) {
         createdAt: new Date().toISOString()
       });
       
+      // Set the new signup flag
+      setIsNewSignup(true);
+      
       return userCredential.user;
     } catch (err) {
       setError(err.message);
@@ -51,6 +55,7 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     try {
       setError('');
+      setIsNewSignup(false); // Reset the flag on login
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       return userCredential.user;
     } catch (err) {
@@ -60,7 +65,13 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    setIsNewSignup(false); // Reset the flag on logout
     return signOut(auth);
+  }
+
+  // Function to clear the new signup flag
+  function clearNewSignupFlag() {
+    setIsNewSignup(false);
   }
 
   async function getUserProfile(uid) {
@@ -97,7 +108,9 @@ export function AuthProvider({ children }) {
     login,
     logout,
     getUserProfile,
-    error
+    error,
+    isNewSignup,
+    clearNewSignupFlag
   };
 
   return (

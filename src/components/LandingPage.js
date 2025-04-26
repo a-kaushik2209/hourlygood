@@ -375,32 +375,61 @@ function LandingPage({ setPage, profile, showLogin }) {
       <section style={{ padding: '80px 20px', background: '#181818', ...sectionStyle(0.9) }} className="cta-section">
         <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ marginBottom: 20, fontSize: '2.5rem', fontWeight: 800 }}>Ready to Share Your Skills?</h2>
-          <p style={{ fontSize: '1.2rem', color: '#ccc', marginBottom: 40, lineHeight: 1.6 }}>Join our community of learners and teachers to exchange knowledge and skills.</p>
+          <p style={{ fontSize: '1.2rem', color: '#ccc', marginBottom: 40, lineHeight: 1.6 }}>
+            {currentUser ? 'Start sharing your knowledge and learning new skills today!' : 'Join our community of learners and teachers to exchange knowledge and skills.'}
+          </p>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
-            <button 
-              onClick={() => setPage('login')} 
-              style={{ 
-                fontSize: 18,
-                fontWeight: 700,
-                padding: '15px 30px',
-              }}>
-              Create Account
-            </button>
-            
-            <button 
-              onClick={() => setPage('marketplace')} 
-              style={{ 
-                fontSize: 18,
-                fontWeight: 700,
-                background: 'var(--dark)',
-                padding: '15px 30px',
-              }}>
-              Browse Skills
-            </button>
+            {!currentUser ? (
+              <>
+                <button 
+                  onClick={() => setPage('login')} 
+                  style={{ 
+                    fontSize: 18,
+                    fontWeight: 700,
+                    padding: '15px 30px',
+                  }}>
+                  Create Account
+                </button>
+                
+                <button 
+                  onClick={() => setPage('marketplace')} 
+                  style={{ 
+                    fontSize: 18,
+                    fontWeight: 700,
+                    background: 'var(--dark)',
+                    padding: '15px 30px',
+                  }}>
+                  Browse Skills
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setPage('request')} 
+                  style={{ 
+                    fontSize: 18,
+                    fontWeight: 700,
+                    padding: '15px 30px',
+                  }}>
+                  Request a Lesson
+                </button>
+                
+                <button 
+                  onClick={() => setPage('marketplace')} 
+                  style={{ 
+                    fontSize: 18,
+                    fontWeight: 700,
+                    background: 'var(--dark)',
+                    padding: '15px 30px',
+                  }}>
+                  Browse Skills
+                </button>
+              </>
+            )}
           </div>
           
-          {profile && (
+          {currentUser && (
             <div style={{ marginTop: 20 }}>
               <button 
                 onClick={() => setPage('profile')} 
@@ -415,7 +444,7 @@ function LandingPage({ setPage, profile, showLogin }) {
             </div>
           )}
           
-          {showLogin && !profile && (
+          {showLogin && !currentUser && (
             <div style={{ marginTop: 20 }}>
               <button 
                 onClick={() => setPage('login')} 
