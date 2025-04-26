@@ -125,17 +125,158 @@ export function LessonProvider({ children }) {
     }
   }
 
+  // Get all lessons for a user (both as teacher and student)
+  async function getAllUserLessons(userId) {
+    try {
+      setError('');
+      
+      // Get skill requests where user is a student
+      const studentQuery = query(
+        collection(db, 'skillRequests'),
+        where('requesterId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      // Get skill requests where user is a teacher
+      const teacherQuery = query(
+        collection(db, 'skillRequests'),
+        where('tutorId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      // Get all skill requests created by the user (including those without a tutor yet)
+      const requestsQuery = query(
+        collection(db, 'skillRequests'),
+        where('requesterId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const studentSnapshot = await getDocs(studentQuery);
+      const teacherSnapshot = await getDocs(teacherQuery);
+      const requestsSnapshot = await getDocs(requestsQuery);
+      
+      const studentLessons = [];
+      const teacherLessons = [];
+      const userRequests = [];
+      
+      studentSnapshot.forEach(doc => {
+        const data = doc.data();
+        studentLessons.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : null,
+          acceptedAt: data.acceptedAt ? data.acceptedAt.toDate() : null,
+          scheduledDate: data.scheduledDate ? data.scheduledDate.toDate() : null,
+          role: 'student',
+          isSkillRequest: true,
+          displayStatus: data.status === 'accepted' ? 'Accepted' : 'Waiting for tutor'
+        });
+      });
+      
+      teacherSnapshot.forEach(doc => {
+        const data = doc.data();
+        teacherLessons.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : null,
+          acceptedAt: data.acceptedAt ? data.acceptedAt.toDate() : null,
+          scheduledDate: data.scheduledDate ? data.scheduledDate.toDate() : null,
+          role: 'teacher',
+          isSkillRequest: true,
+          displayStatus: data.status === 'accepted' ? 'Accepted' : 'Waiting for tutor'
+        });
+      });
+      
+      requestsSnapshot.forEach(doc => {
+        const data = doc.data();
+        userRequests.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : null,
+          acceptedAt: data.acceptedAt ? data.acceptedAt.toDate() : null,
+          scheduledDate: data.scheduledDate ? data.scheduledDate.toDate() : null,
+          role: 'student',
+          isSkillRequest: true,
+          displayStatus: data.status === 'accepted' ? 'Accepted' : 'Waiting for tutor'
+        });
+      });
+      
+      // Combine and sort by createdAt (newest first)
+      // Include all requests in the history, not just accepted ones
+      const allLessons = [...studentLessons, ...teacherLessons, ...userRequests].sort((a, b) => {
+        if (!a.createdAt) return 1;
+        if (!b.createdAt) return -1;
+        return b.createdAt - a.createdAt;
+      });
+      
+      // Remove duplicates (a request might appear in both studentLessons and userRequests)
+      const uniqueLessons = [];
+      const seenIds = new Set();
+      
+      allLessons.forEach(lesson => {
+        if (!seenIds.has(lesson.id)) {
+          seenIds.add(lesson.id);
+          uniqueLessons.push(lesson);
+        }
+      });
+      
+      return uniqueLessons;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }
+
   // Listen for lessons in real-time
   useEffect(() => {
     if (!currentUser) {
       setUpcomingLessons([]);
-      setCompletedLessons([]);
       setActiveLessons([]);
+      setCompletedLessons([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    
+    // Query for all skill requests (both open and accepted)
+    const skillRequestsQuery = query(
+      collection(db, 'skillRequests'),
+      where('status', 'in', ['open', 'accepted'])
+    );
+
+    const unsubscribeSkillRequests = onSnapshot(skillRequestsQuery, (snapshot) => {
+      const requests = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        // Only include requests where the current user is involved
+        if (data.requesterId === currentUser.uid || data.tutorId === currentUser.uid) {
+          requests.push({ 
+            id: doc.id, 
+            ...data,
+            isSkillRequest: true,
+            createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+            acceptedAt: data.acceptedAt ? data.acceptedAt.toDate() : null,
+            role: data.requesterId === currentUser.uid ? 'student' : 'teacher',
+            // Add display status for UI
+            displayStatus: data.status === 'accepted' ? 'Accepted' : 'Waiting for tutor'
+          });
+        }
+      });
+      
+      // Update upcoming lessons with skill requests
+      setUpcomingLessons(prevLessons => {
+        // Filter out any existing skill requests to avoid duplicates
+        const filteredLessons = prevLessons.filter(lesson => !lesson.isSkillRequest);
+        return [...filteredLessons, ...requests];
+      });
+      
+      setLoading(false);
+    }, (err) => {
+      console.error('Error fetching skill requests:', err);
+      setError(err.message);
+      setLoading(false);
+    });
 
     // Query for upcoming lessons (where user is student or teacher)
     const upcomingQuery = query(
@@ -158,7 +299,14 @@ export function LessonProvider({ children }) {
           });
         }
       });
-      setUpcomingLessons(lessons);
+      
+      // Combine with any skill requests that are already in the state
+      setUpcomingLessons(prevLessons => {
+        // Keep only the skill requests
+        const skillRequests = prevLessons.filter(lesson => lesson.isSkillRequest);
+        return [...skillRequests, ...lessons];
+      });
+      
       setLoading(false);
     }, (err) => {
       console.error('Error fetching upcoming lessons:', err);
@@ -217,6 +365,7 @@ export function LessonProvider({ children }) {
     });
 
     return () => {
+      unsubscribeSkillRequests();
       unsubscribeUpcoming();
       unsubscribeActive();
       unsubscribeCompleted();
@@ -231,12 +380,24 @@ export function LessonProvider({ children }) {
     startLesson,
     completeLesson,
     cancelLesson,
+    getAllUserLessons,
     loading,
     error
   };
 
   return (
-    <LessonContext.Provider value={value}>
+    <LessonContext.Provider value={{
+      upcomingLessons,
+      completedLessons,
+      activeLessons,
+      scheduleLesson,
+      startLesson,
+      completeLesson,
+      cancelLesson,
+      getAllUserLessons,
+      loading,
+      error
+    }}>
       {children}
     </LessonContext.Provider>
   );

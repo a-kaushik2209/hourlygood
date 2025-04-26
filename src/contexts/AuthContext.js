@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
         uid: userCredential.user.uid,
         skills: [],
         bio: '',
-        timeCredits: 0,
+        timeCredits: 2, // Changed from 0 to 2 for signup bonus
         createdAt: new Date().toISOString()
       });
       

@@ -58,9 +58,20 @@ function SkillMarketplace({ setPage }) {
     setProcessingRequest(requestId);
     
     try {
+      // Find the request to get the requester's ID
+      const request = skillRequests.find(req => req.id === requestId);
+      if (!request) {
+        throw new Error('Request not found');
+      }
+      
       const chatId = await takeLesson(requestId);
-      alert('You have successfully taken this lesson request! You can now chat with the student.');
-      setPage('chat');
+      alert('You have successfully taken this lesson request! You will now be connected to chat with the student.');
+      
+      // Navigate to the chat page with the requester's ID
+      setPage('chat', { 
+        chatId: chatId,
+        recipientId: request.requesterId 
+      });
     } catch (error) {
       console.error('Error taking lesson:', error);
       alert('Failed to take lesson: ' + error.message);
@@ -89,8 +100,8 @@ function SkillMarketplace({ setPage }) {
   
   // Handle view requester profile
   const handleViewRequester = (requesterId) => {
-    // In a real app, this would navigate to the requester's profile
-    console.log(`Viewing requester profile: ${requesterId}`);
+    // Navigate to the user's profile page
+    setPage('viewProfile', { userId: requesterId });
   };
 
   return (
@@ -205,6 +216,45 @@ function SkillMarketplace({ setPage }) {
                   </svg>
                   <span style={{ color: '#fff', fontWeight: '500' }}>{new Date(request.preferredDate).toLocaleDateString()}</span>
                 </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ 
+                    width: '40px', 
+                    height: '40px', 
+                    borderRadius: '50%', 
+                    background: 'var(--primary)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: 'black',
+                    fontWeight: 'bold',
+                    fontSize: '16px'
+                  }}>
+                    {request.requesterName ? request.requesterName.charAt(0).toUpperCase() : '?'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#ddd' }}>{request.requesterName || 'Anonymous'}</div>
+                    <div style={{ fontSize: '12px', color: '#aaa' }}>
+                      {new Date(request.createdAt?.seconds * 1000).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleViewRequester(request.requesterId)}
+                  style={{ 
+                    background: 'transparent', 
+                    border: '1px solid #444', 
+                    color: '#ddd', 
+                    padding: '5px 10px', 
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  View Profile
+                </button>
               </div>
               
               <div style={{ 
@@ -399,187 +449,15 @@ function SkillMarketplace({ setPage }) {
         </div>
       </div>
       
-      {/* Real-time Lessons with Teachers Section */}
-      <div className="card" style={{ padding: '30px', marginTop: '30px' }}>
-        <h2 style={{ color: 'var(--primary)', marginBottom: '20px' }}>Real-time Lessons with Teachers</h2>
-        <p style={{ color: '#aaa', marginBottom: '20px' }}>
-          Schedule a real-time lesson with one of our expert teachers. These lessons are conducted live at a scheduled time.
-        </p>
-        
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-          {/* JavaScript Teacher */}
-          <div style={{ 
-            flex: '1 1 300px', 
-            background: '#252525', 
-            borderRadius: '8px', 
-            padding: '20px',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <div style={{ 
-              position: 'absolute', 
-              top: 0, 
-              right: 0, 
-              background: 'var(--primary)', 
-              color: 'black',
-              padding: '5px 10px',
-              borderRadius: '0 0 0 8px',
-              fontSize: '12px',
-              fontWeight: '500'
-            }}>
-              POPULAR
-            </div>
-            
-            <div style={{ 
-              width: '60px', 
-              height: '60px', 
-              borderRadius: '50%', 
-              background: '#333', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              fontSize: '24px',
-              marginBottom: '15px'
-            }}>
-              👩‍💻
-            </div>
-            
-            <h3 style={{ color: 'var(--primary)', marginBottom: '5px' }}>JavaScript Programming</h3>
-            <div style={{ color: '#ddd', marginBottom: '5px' }}>Teacher: Emily Chen</div>
-            <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '15px' }}>
-              Learn modern JavaScript from basics to advanced concepts. Perfect for beginners and intermediate developers.
-            </div>
-            
-            <button 
-              onClick={() => handleScheduleLesson({
-                id: 'user2',
-                name: 'Emily Chen',
-                skillId: 'skill1',
-                skillName: 'JavaScript Programming'
-              })}
-              style={{ 
-                width: '100%',
-                background: 'var(--primary)', 
-                color: 'black',
-                border: 'none',
-                padding: '10px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
-            >
-              Schedule Lesson
-            </button>
-          </div>
-          
-          {/* Spanish Teacher */}
-          <div style={{ 
-            flex: '1 1 300px', 
-            background: '#252525', 
-            borderRadius: '8px', 
-            padding: '20px'
-          }}>
-            <div style={{ 
-              width: '60px', 
-              height: '60px', 
-              borderRadius: '50%', 
-              background: '#333', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              fontSize: '24px',
-              marginBottom: '15px'
-            }}>
-              🌎
-            </div>
-            
-            <h3 style={{ color: 'var(--primary)', marginBottom: '5px' }}>Spanish Language</h3>
-            <div style={{ color: '#ddd', marginBottom: '5px' }}>Teacher: Carlos Rodriguez</div>
-            <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '15px' }}>
-              Conversational Spanish for beginners and intermediate learners. Focus on practical vocabulary and grammar.
-            </div>
-            
-            <button 
-              onClick={() => handleScheduleLesson({
-                id: 'user1',
-                name: 'Carlos Rodriguez',
-                skillId: 'skill2',
-                skillName: 'Spanish Language'
-              })}
-              style={{ 
-                width: '100%',
-                background: 'var(--primary)', 
-                color: 'black',
-                border: 'none',
-                padding: '10px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
-            >
-              Schedule Lesson
-            </button>
-          </div>
-          
-          {/* Yoga Teacher */}
-          <div style={{ 
-            flex: '1 1 300px', 
-            background: '#252525', 
-            borderRadius: '8px', 
-            padding: '20px'
-          }}>
-            <div style={{ 
-              width: '60px', 
-              height: '60px', 
-              borderRadius: '50%', 
-              background: '#333', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              fontSize: '24px',
-              marginBottom: '15px'
-            }}>
-              🧘‍♀️
-            </div>
-            
-            <h3 style={{ color: 'var(--primary)', marginBottom: '5px' }}>Yoga Basics</h3>
-            <div style={{ color: '#ddd', marginBottom: '5px' }}>Teacher: Anika Patel</div>
-            <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '15px' }}>
-              Introduction to yoga poses and breathing techniques for beginners. Learn at your own pace with personalized guidance.
-            </div>
-            
-            <button 
-              onClick={() => handleScheduleLesson({
-                id: 'user3',
-                name: 'Anika Patel',
-                skillId: 'skill3',
-                skillName: 'Yoga Basics'
-              })}
-              style={{ 
-                width: '100%',
-                background: 'var(--primary)', 
-                color: 'black',
-                border: 'none',
-                padding: '10px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
-            >
-              Schedule Lesson
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Create Lesson Modal */}
+      {/* Lesson modal */}
       {showLessonModal && selectedTeacher && (
         <CreateLessonModal 
-          onClose={handleCloseLessonModal}
           skillId={selectedTeacher.skillId}
           skillName={selectedTeacher.skillName}
           teacherId={selectedTeacher.id}
           teacherName={selectedTeacher.name}
+          onClose={handleCloseLessonModal}
+          setPage={setPage}
         />
       )}
     </div>

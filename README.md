@@ -1,43 +1,89 @@
-# Saarthi: Unified Emergency Response Prototype
+# HourlyGood: Skill Sharing Platform
 
 ## Overview
-Saarthi is a unified, inclusive, and priority-based emergency response and coordination system. This prototype demonstrates the core flows for ideathon presentation:
-- Emergency reporting (user flow)
-- Priority-based visualization (map clustering)
-- Volunteer/Donor sign-up
-- NGO/Admin dashboard (mock data)
+HourlyGood is a peer-to-peer skill sharing platform that connects people who want to learn with those who can teach. Users can request lessons, browse available skills, and coordinate through real-time chat.
+
+Key features:
+- User authentication and profiles
+- Skill marketplace for browsing available lessons
+- Skill request system for requesting specific lessons
+- Real-time chat with typing indicators and read receipts
+- Time credit system for tracking lesson hours
 
 ## Tech Stack
-- **Frontend**: React (create-react-app), HTML/CSS
-- **Map**: OpenStreetMap (static embed/mock)
-- **Backend**: None (mock data only)
+- **Frontend**: React (create-react-app)
+- **Backend**: Firebase (Authentication, Firestore, Storage)
+- **Real-time Chat**: Socket.io with Express server
+- **Styling**: CSS with inline styles
 
 ## How to Run
-1. Ensure you have Node.js and npm installed.
-2. In the project directory, run:
-   ```bash
-   npm install
-   npm start
-   ```
-3. Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-## Screens
-- Landing Page: Intro, login/signup
-- Emergency Reporting: SOS form, location input
-- Priority Map: Clustered reports, color-coded
-- Volunteer/Donor Signup: Quick join form
-- NGO/Admin Dashboard: Visualized reports, resource/task map (mock)
+### Prerequisites
+- Node.js (v14 or higher)
+- npm or yarn
+- Firebase account
 
-## Note
-This is a prototype for ideathon/demo purposes. No real backend or SMS/IVR integration is present. All data is mocked.
+### Installation
 
----
+1. Install frontend dependencies:
+```bash
+npm install
+```
 
-## Business Model & Go-To-Market (for judges)
-- Freemium model: Public free, paid analytics for NGOs/authorities
-- Telecom/phone partnerships for auto-SOS
-- Pilot in disaster-prone areas
+2. Install server dependencies:
+```bash
+npm install -g firebase-tools
+npm install express socket.io cors firebase-admin
+```
 
----
+3. Set up Firebase:
+   - Create a Firebase project at https://console.firebase.google.com/
+   - Enable Authentication, Firestore, and Storage
+   - Add your Firebase config to `src/firebase.js`
+   - Generate a service account key and save it as `serviceAccountKey.json` in the root directory
 
-For queries, contact the Saarthi team.
+### Running the Application
+
+#### Development Mode
+Run both the React frontend and Socket.io server concurrently:
+```bash
+npm run dev
+```
+
+Or run them separately:
+```bash
+# Terminal 1 - React frontend
+npm start
+
+# Terminal 2 - Socket.io server
+npm run server
+```
+
+#### Production Mode
+1. Build the React app:
+```bash
+npm run build
+```
+
+2. Start the server which will serve the built React app:
+```bash
+npm run server
+```
+
+## Deployment
+The application is ready for deployment to platforms like Netlify, Vercel, or Firebase Hosting. For the Socket.io server, you can deploy to services like Heroku, Railway, or DigitalOcean.
+
+## Features
+- **Authentication**: Sign up, login, and profile management
+- **Skill Marketplace**: Browse and filter available skills
+- **Skill Requests**: Request lessons for specific skills
+- **Real-time Chat**: Communicate with tutors/students with typing indicators and read receipts
+- **Time Credits**: Track and manage lesson hours
+- **Responsive Design**: Works on desktop and mobile devices
+
+## Future Enhancements
+- Video calling integration
+- Payment processing
+- Rating and review system
+- Advanced search and filtering
+- Mobile app versions

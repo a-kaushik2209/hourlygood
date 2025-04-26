@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSkill } from '../contexts/SkillContext';
+import { useLesson } from '../contexts/LessonContext';
 import { initializeDatabase, checkUserLessons } from '../utils/databaseInit';
+import UserRatings from './UserRatings';
+import SkillProofs from './SkillProofs';
+import SkillProofUpload from './SkillProofUpload';
+import RatingModal from './RatingModal';
+import { format } from 'date-fns';
 
 function ProfilePage({ setPage }) {
   const { currentUser, getUserProfile } = useAuth();
-  const { addSkill, updateBio, myRequests, myLessons } = useSkill();
+  const { addSkill, updateBio, myRequests, myLessons, uploadSkillProof, getUserRatings } = useSkill();
+  const { upcomingLessons, completedLessons, activeLessons } = useLesson();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bioText, setBioText] = useState('');
@@ -15,30 +22,52 @@ function ProfilePage({ setPage }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [hasLessons, setHasLessons] = useState(true);
   const [initializingDb, setInitializingDb] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [skillProofFile, setSkillProofFile] = useState(null);
+  const [userRatings, setUserRatings] = useState(null);
+  const [loadingRatings, setLoadingRatings] = useState(false);
   
   // Fetch user profile data and check if user has lessons
   useEffect(() => {
-    async function loadProfile() {
+    async function fetchData() {
       if (currentUser) {
-        setLoading(true);
         try {
+          // Get user profile
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
-          setBioText(userProfile.bio || '');
+          // Add null check before accessing bio property
+          setBioText(userProfile && userProfile.bio ? userProfile.bio : '');
           
           // Check if user has any lessons
-          const hasUserLessons = await checkUserLessons(currentUser);
+          const hasUserLessons = await checkUserLessons(currentUser.uid);
           setHasLessons(hasUserLessons);
+          
+          // Fetch user ratings with error handling
+          setLoadingRatings(true);
+          try {
+            const ratings = await getUserRatings(currentUser.uid);
+            setUserRatings(ratings);
+          } catch (error) {
+            console.log('No ratings found for new user, this is normal for new signups');
+            // Set default empty ratings
+            setUserRatings({
+              averageRating: 0,
+              totalRatings: 0,
+              ratings: []
+            });
+          } finally {
+            setLoadingRatings(false);
+          }
         } catch (error) {
-          console.error('Error loading profile:', error);
+          console.error('Error fetching user data:', error);
         } finally {
           setLoading(false);
         }
       }
     }
-    
-    loadProfile();
-  }, [currentUser, getUserProfile]);
+    fetchData();
+  }, [currentUser, getUserProfile, getUserRatings, checkUserLessons]);
   
   // Handle initializing the database with sample data
   const handleInitializeDatabase = async () => {
@@ -68,15 +97,28 @@ function ProfilePage({ setPage }) {
   
   // Handle adding a new skill
   const handleAddSkill = async () => {
-    if (!newSkill.name.trim()) return;
+    if (!newSkill.name) return;
     
     try {
-      await addSkill(newSkill);
-      setProfile(prev => ({
-        ...prev,
-        skills: [...(prev.skills || []), newSkill]
-      }));
+      // Upload skill proof if provided
+      let proofUrl = null;
+      if (skillProofFile) {
+        proofUrl = await uploadSkillProof(skillProofFile, newSkill.name);
+      }
+      
+      // Add the skill with proof URL if available
+      await addSkill({
+        ...newSkill,
+        proofUrl
+      });
+      
+      // Refresh profile data
+      const updatedProfile = await getUserProfile(currentUser.uid);
+      setProfile(updatedProfile);
+      
+      // Reset form
       setNewSkill({ name: '', level: 'Beginner' });
+      setSkillProofFile(null);
       setAddingSkill(false);
     } catch (error) {
       console.error('Error adding skill:', error);
@@ -127,43 +169,6 @@ function ProfilePage({ setPage }) {
   return (
     <div className="fade-in" style={{ maxWidth: 800, margin: '1rem auto' }}>
       {/* Profile Header */}
-      {/* Database initialization banner (only shown if user has no lessons) */}
-      {!hasLessons && (
-        <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
-          <div style={{ 
-            background: 'rgba(255, 143, 0, 0.1)', 
-            borderRadius: '8px', 
-            padding: '15px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div>
-              <div style={{ color: 'var(--primary)', fontWeight: '500', marginBottom: '5px' }}>
-                Initialize Demo Data
-              </div>
-              <div style={{ color: '#aaa', fontSize: '14px' }}>
-                Create sample lessons and users to test the real-time lesson functionality.
-              </div>
-            </div>
-            <button 
-              onClick={handleInitializeDatabase}
-              disabled={initializingDb}
-              style={{ 
-                background: 'var(--primary)', 
-                color: 'black',
-                border: 'none',
-                padding: '8px 15px',
-                borderRadius: '5px',
-                cursor: initializingDb ? 'not-allowed' : 'pointer',
-                opacity: initializingDb ? 0.7 : 1
-              }}
-            >
-              {initializingDb ? 'Initializing...' : 'Initialize Data'}
-            </button>
-          </div>
-        </div>
-      )}
       
       <div className="card" style={{ padding: '30px', marginBottom: '20px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ 
@@ -189,11 +194,11 @@ function ProfilePage({ setPage }) {
             fontSize: '30px',
             border: '2px solid var(--primary)'
           }}>
-            {profile.name.charAt(0).toUpperCase()}
+            {profile?.name?.charAt(0).toUpperCase()}
           </div>
           
           <div>
-            <h2 style={{ margin: '0', color: 'var(--primary)' }}>{profile.name}</h2>
+            <h2 style={{ margin: '0', color: 'var(--primary)' }}>{profile?.name || 'User'}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
               <span style={{ 
                 background: '#252525', 
@@ -202,9 +207,9 @@ function ProfilePage({ setPage }) {
                 fontSize: '14px',
                 color: '#ddd'
               }}>
-                {profile.timeCredits || 0} Time Credits
+                {profile?.timeCredits || 0} Time Credits
               </span>
-              <span style={{ color: '#aaa', fontSize: '14px' }}>ID: {profile.id}</span>
+
             </div>
           </div>
         </div>
@@ -273,16 +278,13 @@ function ProfilePage({ setPage }) {
             }}>
               <div>
                 <div style={{ color: '#aaa', fontSize: '14px' }}>Name</div>
-                <div style={{ fontSize: '16px', marginTop: '5px' }}>{profile.name}</div>
+                <div style={{ fontSize: '16px', marginTop: '5px' }}>{profile?.name || 'Not provided'}</div>
               </div>
               <div>
                 <div style={{ color: '#aaa', fontSize: '14px' }}>Email</div>
-                <div style={{ fontSize: '16px', marginTop: '5px' }}>{profile.email || 'Not provided'}</div>
+                <div style={{ fontSize: '16px', marginTop: '5px' }}>{profile?.email || 'Not provided'}</div>
               </div>
-              <div>
-                <div style={{ color: '#aaa', fontSize: '14px' }}>User ID</div>
-                <div style={{ fontSize: '16px', marginTop: '5px' }}>{profile.id}</div>
-              </div>
+
               <div>
                 <div style={{ color: '#aaa', fontSize: '14px' }}>Password</div>
                 <div style={{ fontSize: '16px', marginTop: '5px', letterSpacing: '2px' }}>••••••••</div>
@@ -317,7 +319,7 @@ function ProfilePage({ setPage }) {
                     <button 
                       onClick={() => {
                         setEditingBio(false);
-                        setBioText(profile.bio || '');
+                        setBioText(profile?.bio || '');
                       }}
                       style={{ 
                         background: '#333', 
@@ -350,7 +352,7 @@ function ProfilePage({ setPage }) {
               </div>
               {!editingBio ? (
                 <div style={{ fontSize: '16px', color: '#ddd', lineHeight: '1.5' }}>
-                  {profile.bio || 'Add a bio to tell others about yourself and the skills you can teach.'}
+                  {profile?.bio || 'Add a bio to tell others about yourself and the skills you can teach.'}
                 </div>
               ) : (
                 <textarea
@@ -377,14 +379,14 @@ function ProfilePage({ setPage }) {
               <div style={{ flex: 1, background: '#252525', padding: '20px', borderRadius: '8px' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: 'var(--primary)' }}>Skills Offered</h4>
                 <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                  {profile.skills ? profile.skills.length : 0}
+                  {profile?.skills ? profile.skills.length : 0}
                 </div>
                 <div style={{ color: '#aaa', fontSize: '14px', marginTop: '5px' }}>Skills you can teach</div>
               </div>
               <div style={{ flex: 1, background: '#252525', padding: '20px', borderRadius: '8px' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: 'var(--primary)' }}>Time Credits</h4>
                 <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                  {profile.timeCredits || 0}
+                  {profile?.timeCredits || 0}
                 </div>
                 <div style={{ color: '#aaa', fontSize: '14px', marginTop: '5px' }}>Hours available to learn</div>
               </div>
@@ -416,7 +418,7 @@ function ProfilePage({ setPage }) {
           <div className="fade-in">
             <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>My Skills</h3>
             
-            {profile.skills && profile.skills.length > 0 ? (
+            {profile?.skills && profile.skills.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 {profile.skills.map((skill, index) => (
                   <div 
@@ -513,7 +515,7 @@ function ProfilePage({ setPage }) {
                         }}
                       />
                     </div>
-                    <div style={{ marginBottom: '20px' }}>
+                    <div style={{ marginBottom: '15px' }}>
                       <label style={{ display: 'block', marginBottom: '5px', color: '#ddd' }}>Skill Level:</label>
                       <select
                         value={newSkill.level}
@@ -533,9 +535,82 @@ function ProfilePage({ setPage }) {
                         <option value="Expert">Expert</option>
                       </select>
                     </div>
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', marginBottom: '5px', color: '#ddd' }}>Upload Proof (PDF or JPG):</label>
+                      <div style={{ 
+                        border: '1px dashed #444',
+                        borderRadius: '4px',
+                        padding: '15px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        position: 'relative'
+                      }}>
+                        <input 
+                          type="file" 
+                          id="skill-proof" 
+                          accept=".pdf,.jpg,.jpeg" 
+                          onChange={(e) => setSkillProofFile(e.target.files[0])}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            opacity: 0,
+                            width: '100%',
+                            height: '100%',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                          </svg>
+                          <span style={{ color: '#aaa' }}>
+                            {skillProofFile ? skillProofFile.name : 'Click to upload PDF or JPG (max 5MB)'}
+                          </span>
+                        </div>
+                      </div>
+                      {skillProofFile && (
+                        <div style={{ 
+                          marginTop: '10px', 
+                          background: '#333', 
+                          padding: '10px', 
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px'
+                        }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                          </svg>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {skillProofFile.name}
+                          </span>
+                          <button 
+                            onClick={() => setSkillProofFile(null)}
+                            style={{ 
+                              background: 'transparent', 
+                              border: 'none', 
+                              color: '#aaa',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"></line>
+                              <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                       <button
-                        onClick={() => setAddingSkill(false)}
+                        onClick={() => {
+                          setAddingSkill(false);
+                          setSkillProofFile(null);
+                        }}
                         style={{
                           background: '#333',
                           border: 'none',
@@ -628,40 +703,67 @@ function ProfilePage({ setPage }) {
           <div className="fade-in">
             <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>My Lessons</h3>
             
+            {/* Scheduled Lessons Section */}
             <div style={{ marginBottom: '30px' }}>
-              <h4 style={{ color: '#ddd', marginTop: '20px', marginBottom: '15px' }}>Lessons I've Taught</h4>
+              <h4 style={{ color: '#ddd', marginTop: '20px', marginBottom: '15px' }}>Scheduled Lessons</h4>
               
-              {profile.taughtLessons && profile.taughtLessons.length > 0 ? (
+              {upcomingLessons && upcomingLessons.length > 0 ? (
                 <div>
-                  {profile.taughtLessons.map((lesson, i) => (
+                  {upcomingLessons.map((lesson) => (
                     <div 
-                      key={i} 
+                      key={lesson.id} 
                       style={{ 
                         background: '#252525', 
                         padding: '15px 20px', 
                         borderRadius: '8px', 
                         marginBottom: '15px',
-                        borderLeft: '4px solid var(--primary)',
-                        animation: 'fadeIn 0.5s',
-                        animationDelay: `${i * 0.1}s`,
-                        animationFillMode: 'both'
+                        borderLeft: lesson.role === 'teacher' ? '4px solid var(--primary)' : '4px solid #9c27b0',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{lesson.skill}</span>
-                        <span style={{ color: '#aaa', fontSize: '13px' }}>{lesson.date}</span>
+                        <span style={{ color: lesson.role === 'teacher' ? 'var(--primary)' : '#9c27b0', fontWeight: 600 }}>
+                          {lesson.skillName || 'Unnamed Skill'}
+                        </span>
+                        <span style={{ color: '#aaa', fontSize: '13px' }}>
+                          {lesson.scheduledDate ? format(lesson.scheduledDate, 'MMM dd, yyyy - HH:mm') : 'Date not set'}
+                        </span>
                       </div>
-                      <div style={{ marginTop: '8px', color: '#ddd' }}>Student: {lesson.student}</div>
+                      <div style={{ marginTop: '8px', color: '#ddd' }}>
+                        {lesson.role === 'teacher' ? 'Teaching: ' : 'Learning from: '}
+                        {lesson.role === 'teacher' ? lesson.studentName : lesson.teacherName}
+                      </div>
                       <div style={{ 
                         marginTop: '10px', 
                         display: 'inline-block',
                         padding: '3px 10px',
                         borderRadius: '20px',
                         fontSize: '12px',
-                        background: lesson.completed ? '#4caf50' : '#ff9800',
+                        background: '#ff9800',
                         color: '#fff'
                       }}>
-                        {lesson.completed ? 'Completed' : 'Pending'}
+                        {lesson.status === 'confirmed' ? 'Confirmed' : 'Scheduled'}
+                      </div>
+                      <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                        <button 
+                          onClick={() => setPage('chat', { recipientId: lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId })}
+                          style={{ 
+                            background: 'transparent', 
+                            border: '1px solid #444', 
+                            color: '#ddd', 
+                            padding: '5px 10px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                          </svg>
+                          Message
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -675,45 +777,72 @@ function ProfilePage({ setPage }) {
                   fontSize: '14px',
                   textAlign: 'center'
                 }}>
-                  You haven't taught any lessons yet.
+                  You don't have any scheduled lessons.
                 </div>
               )}
             </div>
             
-            <div>
-              <h4 style={{ color: '#ddd', marginTop: '30px', marginBottom: '15px' }}>Lessons I've Learned</h4>
+            {/* Active Lessons Section */}
+            <div style={{ marginBottom: '30px' }}>
+              <h4 style={{ color: '#ddd', marginTop: '20px', marginBottom: '15px' }}>Active Lessons</h4>
               
-              {profile.learnedLessons && profile.learnedLessons.length > 0 ? (
+              {activeLessons && activeLessons.length > 0 ? (
                 <div>
-                  {profile.learnedLessons.map((lesson, i) => (
+                  {activeLessons.map((lesson) => (
                     <div 
-                      key={i} 
+                      key={lesson.id} 
                       style={{ 
                         background: '#252525', 
                         padding: '15px 20px', 
                         borderRadius: '8px', 
                         marginBottom: '15px',
-                        borderLeft: '4px solid #9c27b0',
-                        animation: 'fadeIn 0.5s',
-                        animationDelay: `${i * 0.1}s`,
-                        animationFillMode: 'both'
+                        borderLeft: lesson.role === 'teacher' ? '4px solid var(--primary)' : '4px solid #9c27b0',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: '#9c27b0', fontWeight: 600 }}>{lesson.skill}</span>
-                        <span style={{ color: '#aaa', fontSize: '13px' }}>{lesson.date}</span>
+                        <span style={{ color: lesson.role === 'teacher' ? 'var(--primary)' : '#9c27b0', fontWeight: 600 }}>
+                          {lesson.skillName || 'Unnamed Skill'}
+                        </span>
+                        <span style={{ color: '#aaa', fontSize: '13px' }}>
+                          Started: {lesson.startedAt ? format(lesson.startedAt, 'MMM dd, yyyy - HH:mm') : 'Just now'}
+                        </span>
                       </div>
-                      <div style={{ marginTop: '8px', color: '#ddd' }}>Teacher: {lesson.teacher}</div>
+                      <div style={{ marginTop: '8px', color: '#ddd' }}>
+                        {lesson.role === 'teacher' ? 'Teaching: ' : 'Learning from: '}
+                        {lesson.role === 'teacher' ? lesson.studentName : lesson.teacherName}
+                      </div>
                       <div style={{ 
                         marginTop: '10px', 
                         display: 'inline-block',
                         padding: '3px 10px',
                         borderRadius: '20px',
                         fontSize: '12px',
-                        background: lesson.completed ? '#4caf50' : '#ff9800',
+                        background: '#4caf50',
                         color: '#fff'
                       }}>
-                        {lesson.completed ? 'Completed' : 'Pending'}
+                        In Progress
+                      </div>
+                      <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                        <button 
+                          onClick={() => setPage('chat', { recipientId: lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId })}
+                          style={{ 
+                            background: 'transparent', 
+                            border: '1px solid #444', 
+                            color: '#ddd', 
+                            padding: '5px 10px', 
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                          </svg>
+                          Message
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -727,7 +856,73 @@ function ProfilePage({ setPage }) {
                   fontSize: '14px',
                   textAlign: 'center'
                 }}>
-                  You haven't taken any lessons yet.
+                  You don't have any active lessons.
+                </div>
+              )}
+            </div>
+            
+            {/* Completed Lessons Section */}
+            <div style={{ marginBottom: '30px' }}>
+              <h4 style={{ color: '#ddd', marginTop: '20px', marginBottom: '15px' }}>Completed Lessons</h4>
+              
+              {completedLessons && completedLessons.length > 0 ? (
+                <div>
+                  {completedLessons.map((lesson) => (
+                    <div 
+                      key={lesson.id} 
+                      style={{ 
+                        background: '#252525', 
+                        padding: '15px 20px', 
+                        borderRadius: '8px', 
+                        marginBottom: '15px',
+                        borderLeft: lesson.role === 'teacher' ? '4px solid var(--primary)' : '4px solid #9c27b0',
+                        opacity: lesson.status === 'cancelled' ? 0.7 : 1
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: lesson.role === 'teacher' ? 'var(--primary)' : '#9c27b0', fontWeight: 600 }}>
+                          {lesson.skillName || 'Unnamed Skill'}
+                        </span>
+                        <span style={{ color: '#aaa', fontSize: '13px' }}>
+                          {lesson.completedAt ? format(lesson.completedAt, 'MMM dd, yyyy') : 'Date not available'}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: '8px', color: '#ddd' }}>
+                        {lesson.role === 'teacher' ? 'Taught: ' : 'Learned from: '}
+                        {lesson.role === 'teacher' ? lesson.studentName : lesson.teacherName}
+                      </div>
+                      <div style={{ 
+                        marginTop: '10px', 
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        background: lesson.status === 'cancelled' ? '#f44336' : '#4caf50',
+                        color: '#fff'
+                      }}>
+                        {lesson.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                      </div>
+                      {lesson.rating && (
+                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '5px', color: '#ffc107' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                          </svg>
+                          <span>{lesson.rating}/5</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ 
+                  padding: '15px 20px', 
+                  background: '#252525', 
+                  borderRadius: '8px',
+                  color: '#aaa',
+                  fontSize: '14px',
+                  textAlign: 'center'
+                }}>
+                  You haven't completed any lessons yet.
                 </div>
               )}
               

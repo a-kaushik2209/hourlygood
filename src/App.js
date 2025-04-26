@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import LandingPage from './components/LandingPage';
 import SkillRequestPage from './components/SkillRequestPage';
 import SkillMarketplace from './components/SkillMarketplace';
@@ -6,6 +8,7 @@ import SkillLessons from './components/SkillLessons';
 import ProfilePage from './components/ProfilePage';
 import LoginPage from './components/LoginPage';
 import ChatPage from './components/ChatPage';
+import UserProfilePage from './components/UserProfilePage'; // Import UserProfilePage
 import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SkillProvider } from './contexts/SkillContext';
@@ -98,21 +101,74 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMenuTooltip, setShowMenuTooltip] = useState(true); // Show tooltip for new users
   const [showLogoutMessage, setShowLogoutMessage] = useState(false); // For logout message
+  const [pageParams, setPageParams] = useState(null);
+  const [viewUserId, setViewUserId] = useState(null);
+  const [timeCredits, setTimeCredits] = useState(0); // Default value
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
   
-  // Set profile based on authenticated user
+  // Set profile based on authenticated user and handle initial page loading
   useEffect(() => {
+    setIsLoading(true);
+    
+    // Set initial page based on authentication status
     if (currentUser) {
-      setPage('profile');
+      // If user is logged in, set page to home
+      setPage('home');
+      
+      // Get user profile data to display time credits
+      const fetchUserProfile = async () => {
+        try {
+          // Get reference to the user document
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            // Set time credits from user profile
+            setTimeCredits(userData.timeCredits || 2); // Default to 2 for new users
+          } else {
+            // For brand new users, default to 2 time credits
+            setTimeCredits(2);
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          // Default to 2 credits if there's an error
+          setTimeCredits(2);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchUserProfile();
     } else {
+      // If user is not logged in, set page to landing
       setPage('landing');
+      setIsLoading(false);
     }
   }, [currentUser]);
 
   // Handle navigation between pages
-  const handleNavigation = (targetPage) => {
+  const handleNavigation = (targetPage, params = null) => {
     setPage(targetPage);
+    setPageParams(params);
     setSidebarOpen(false);
     setShowMenuTooltip(false); // Hide tooltip after navigation
+    
+    // Handle user profile viewing
+    if (targetPage === 'viewProfile' && params && params.userId) {
+      setViewUserId(params.userId);
+    } else {
+      setViewUserId(null);
+    }
+  };
+
+  const handleRequestLesson = (user, skillName = null) => {
+    // Navigate to the request page with the selected user and skill
+    handleNavigation('request', { 
+      tutorId: user.id,
+      tutorName: user.name,
+      skillName: skillName
+    });
   };
 
   const handleLogout = () => {
@@ -159,7 +215,7 @@ function AppContent() {
           <div className="logo-text">HourlyGood</div>
         </div>
         <nav>
-          <div className={`nav-link ${page === 'landing' ? 'active' : ''}`} onClick={() => handleNavigation('landing')}>
+          <div className={`nav-link ${page === 'landing' || page === 'home' ? 'active' : ''}`} onClick={() => handleNavigation(currentUser ? 'home' : 'landing')}>
             <HomeIcon /> <span>Home</span>
           </div>
           <div className={`nav-link ${page === 'request' ? 'active' : ''}`} onClick={() => handleNavigation('request')}>
@@ -235,13 +291,38 @@ function AppContent() {
           </div>
         )}
         
-        {page === 'landing' && <LandingPage setPage={setPage} />}
-        {page === 'request' && <SkillRequestPage setPage={setPage} />}
-        {page === 'marketplace' && <SkillMarketplace setPage={setPage} />}
-        {page === 'lessons' && <SkillLessons setPage={setPage} />}
-        {page === 'profile' && <ProfilePage setPage={setPage} />}
-        {page === 'login' && <LoginPage setPage={setPage} />}
-        {page === 'chat' && <ChatPage setPage={setPage} />}
+        {isLoading ? (
+          <div className="loading-container" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '80vh',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              width: '60px', 
+              height: '60px', 
+              borderRadius: '50%', 
+              border: '4px solid rgba(255, 143, 0, 0.1)', 
+              borderTopColor: 'var(--primary)',
+              animation: 'spin 1s infinite linear'
+            }}></div>
+            <div style={{ marginTop: '20px', color: '#aaa', fontSize: '16px' }}>Loading...</div>
+          </div>
+        ) : (
+          <>
+            {page === 'landing' && !currentUser && <LandingPage setPage={handleNavigation} />}
+            {page === 'home' && currentUser && <LandingPage setPage={handleNavigation} />}
+            {page === 'request' && <SkillRequestPage setPage={handleNavigation} pageParams={pageParams} />}
+            {page === 'marketplace' && <SkillMarketplace setPage={handleNavigation} />}
+            {page === 'lessons' && <SkillLessons setPage={handleNavigation} />}
+            {page === 'profile' && <ProfilePage setPage={handleNavigation} />}
+            {page === 'login' && !currentUser && <LoginPage setPage={handleNavigation} />}
+            {page === 'chat' && <ChatPage setPage={handleNavigation} pageParams={pageParams} />}
+            {page === 'viewProfile' && <UserProfilePage userId={viewUserId} setPage={handleNavigation} onRequestLesson={handleRequestLesson} />}
+          </>
+        )}
       </div>
       
       {/* Logout Message */}

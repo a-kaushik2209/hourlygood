@@ -1,17 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import { useSkill } from '../contexts/SkillContext';
+import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 
-function ChatPage({ setPage }) {
+function ChatPage({ setPage, pageParams }) {
   const { currentUser } = useAuth();
-  const { chats, activeChat, setActiveChat, messages, sendMessage, loading: chatLoading } = useChat();
+  const { 
+    chats, 
+    activeChat, 
+    setActiveChat, 
+    messages, 
+    sendMessage, 
+    markChatAsRead,
+    unreadCounts,
+    typingUsers,
+    onlineUsers,
+    sendTypingIndicator,
+    sendStopTypingIndicator,
+    loading: chatLoading 
+  } = useChat();
   const { completeLesson } = useSkill();
   
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [completingLesson, setCompletingLesson] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef(null);
   
   const messagesEndRef = useRef(null);
   
@@ -24,23 +41,102 @@ function ChatPage({ setPage }) {
   // Get the current chat details
   const currentChat = chats.find(chat => chat.id === activeChat);
   
+  // Real-time messages listener
+  useEffect(() => {
+    if (!activeChat) return;
+    
+    // Create a query for messages in the current chat, ordered by timestamp
+    const messagesQuery = query(
+      collection(db, 'messages'),
+      where('chatId', '==', activeChat),
+      orderBy('createdAt', 'asc')
+    );
+    
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      const newMessages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date()
+      }));
+      
+      // Mark messages as read if they're from the other user
+      if (newMessages.length > 0 && currentUser) {
+        markChatAsRead(activeChat);
+      }
+      
+      // Scroll to bottom on new messages
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+    }, (error) => {
+      console.error("Error getting real-time messages:", error);
+    });
+    
+    return () => unsubscribe();
+  }, [activeChat, currentUser, markChatAsRead]);
+  
   // Handle sending a message
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = useCallback(async (e) => {
     e.preventDefault();
     if (messageText.trim() === '' || !activeChat || !currentUser) return;
     
     setSending(true);
     setError('');
     
+    // Store message text and clear input immediately for better UX
+    const messageToSend = messageText.trim();
+    setMessageText('');
+    
     try {
-      await sendMessage(activeChat, messageText.trim());
-      setMessageText('');
+      // Clear typing indicator
+      if (isTyping) {
+        sendStopTypingIndicator(activeChat);
+        setIsTyping(false);
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+      }
+      
+      // Send the message
+      await sendMessage(activeChat, messageToSend);
+      
+      // Scroll to bottom immediately
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     } catch (err) {
       setError('Failed to send message: ' + err.message);
       console.error('Error sending message:', err);
     } finally {
       setSending(false);
     }
+  }, [activeChat, currentUser, isTyping, messageText, sendMessage, sendStopTypingIndicator]);
+  
+  // Handle typing indicator
+  const handleTyping = (e) => {
+    setMessageText(e.target.value);
+    
+    if (!isTyping && activeChat) {
+      setIsTyping(true);
+      sendTypingIndicator(activeChat);
+    }
+    
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Set new timeout to stop typing indicator after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping && activeChat) {
+        sendStopTypingIndicator(activeChat);
+        setIsTyping(false);
+      }
+    }, 2000);
   };
   
   // Handle marking a lesson as complete
@@ -61,12 +157,58 @@ function ChatPage({ setPage }) {
     }
   };
   
+  // Handle selecting a chat
+  const handleSelectChat = (chatId) => {
+    setActiveChat(chatId);
+    // Mark as read when selected
+    markChatAsRead(chatId);
+  };
+  
+  // Handle viewing a user's profile
+  const handleViewProfile = (userId) => {
+    if (!userId) return;
+    setPage('viewProfile', { userId });
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+  
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!currentUser && !chatLoading) {
       setPage('login');
     }
   }, [currentUser, chatLoading, setPage]);
+
+  // Check if someone is typing in the current chat
+  const isOtherUserTyping = currentChat && Object.keys(typingUsers).length > 0;
+
+  // Check if there's a recipient ID or chatId in the page params and set active chat
+  useEffect(() => {
+    if (pageParams && chats.length > 0) {
+      // If chatId is directly provided, use it
+      if (pageParams.chatId) {
+        handleSelectChat(pageParams.chatId);
+      }
+      // Otherwise, try to find chat with the recipient
+      else if (pageParams.recipientId) {
+        // Find chat with this recipient
+        const chat = chats.find(c => 
+          (c.participants[0] === pageParams.recipientId || c.participants[1] === pageParams.recipientId)
+        );
+        
+        if (chat) {
+          handleSelectChat(chat.id);
+        }
+      }
+    }
+  }, [pageParams, chats]);
 
   return (
     <div className="fade-in" style={{ maxWidth: 1200, margin: '1rem auto' }}>
@@ -130,12 +272,12 @@ function ChatPage({ setPage }) {
               {chats.map(chat => (
                 <div 
                   key={chat.id}
-                  onClick={() => setActiveChat(chat.id)}
+                  onClick={() => handleSelectChat(chat.id)}
                   style={{ 
                     padding: '15px 20px', 
                     borderBottom: '1px solid #333',
                     cursor: 'pointer',
-                    background: activeChat === chat.id ? '#252525' : 'transparent',
+                    background: activeChat === chat.id ? '#252525' : chat.isUnread ? 'rgba(255, 143, 0, 0.1)' : 'transparent',
                     transition: 'background 0.2s ease',
                     position: 'relative'
                   }}
@@ -150,30 +292,63 @@ function ChatPage({ setPage }) {
                       alignItems: 'center', 
                       justifyContent: 'center',
                       color: '#fff',
-                      fontWeight: '500'
+                      fontWeight: '500',
+                      position: 'relative'
                     }}>
                       {chat.otherParticipant?.name?.charAt(0) || '?'}
+                      
+                      {/* Online indicator */}
+                      {chat.isOnline && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '0',
+                          right: '0',
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: '#4CAF50',
+                          border: '2px solid #1e1e1e'
+                        }} />
+                      )}
                     </div>
                     
                     <div style={{ flex: 1, overflow: 'hidden' }}>
                       <div style={{ 
-                        fontWeight: '500', 
-                        color: '#fff', 
+                        fontWeight: chat.isUnread ? '700' : '500', 
+                        color: chat.isUnread ? 'var(--primary)' : '#fff', 
                         marginBottom: '3px',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}>
                         {chat.otherParticipant?.name || 'Unknown User'}
+                        {chat.isUnread && unreadCounts[chat.id] > 0 && (
+                          <span style={{
+                            marginLeft: '8px',
+                            background: 'var(--primary)',
+                            color: 'black',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            {unreadCounts[chat.id]}
+                          </span>
+                        )}
                       </div>
                       <div style={{ 
-                        color: '#aaa', 
+                        color: chat.isUnread ? '#ddd' : '#aaa', 
                         fontSize: '13px',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        textOverflow: 'ellipsis',
+                        fontWeight: chat.isUnread ? '500' : 'normal'
                       }}>
-                        {chat.request?.skillName || 'Skill Lesson'}
+                        {chat.lastMessage || chat.request?.skillName || 'Skill Lesson'}
                       </div>
                     </div>
                   </div>
@@ -183,8 +358,9 @@ function ChatPage({ setPage }) {
                     top: '50%', 
                     right: '20px', 
                     transform: 'translateY(-50%)',
-                    color: '#aaa',
-                    fontSize: '12px'
+                    color: chat.isUnread ? '#ddd' : '#aaa',
+                    fontSize: '12px',
+                    fontWeight: chat.isUnread ? '500' : 'normal'
                   }}>
                     {chat.lastMessageTime ? new Date(chat.lastMessageTime.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                   </div>
@@ -230,14 +406,53 @@ function ChatPage({ setPage }) {
                   alignItems: 'center', 
                   justifyContent: 'center',
                   color: '#fff',
-                  fontWeight: '500'
+                  fontWeight: '500',
+                  position: 'relative'
                 }}>
                   {currentChat.otherParticipant?.name?.charAt(0) || '?'}
+                  
+                  {/* Online indicator */}
+                  {currentChat.isOnline && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '0',
+                      right: '0',
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: '#4CAF50',
+                      border: '2px solid #1e1e1e'
+                    }} />
+                  )}
                 </div>
                 
                 <div>
-                  <div style={{ fontWeight: '500', color: '#fff', marginBottom: '3px' }}>
+                  <div style={{ fontWeight: '500', color: '#fff', marginBottom: '3px', display: 'flex', alignItems: 'center' }}>
                     {currentChat.otherParticipant?.name || 'Unknown User'}
+                    {currentChat.isOnline && (
+                      <span style={{ color: '#4CAF50', fontSize: '12px', marginLeft: '8px' }}>
+                        Online
+                      </span>
+                    )}
+                    <button 
+                      onClick={() => handleViewProfile(currentChat.otherParticipant?.id)}
+                      style={{ 
+                        background: 'none', 
+                        color: '#aaa', 
+                        border: 'none', 
+                        padding: '0 10px', 
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        marginLeft: '10px'
+                      }}
+                    >
+                      View Profile
+                    </button>
                   </div>
                   <div style={{ color: '#aaa', fontSize: '13px' }}>
                     {currentChat.request?.skillName || 'Skill Lesson'}
@@ -340,13 +555,81 @@ function ChatPage({ setPage }) {
                           fontSize: '11px', 
                           opacity: 0.7, 
                           textAlign: message.senderId === currentUser.uid ? 'right' : 'left',
-                          marginTop: '2px'
+                          marginTop: '2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: message.senderId === currentUser.uid ? 'flex-end' : 'flex-start',
+                          gap: '4px'
                         }}>
                           {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                          
+                          {/* Read status for sent messages */}
+                          {message.senderId === currentUser.uid && (
+                            <span title={message.read ? "Read" : "Delivered"}>
+                              {message.read ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 6L9.7 16.4l-4.6-5"></path>
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="9 11 12 14 22 4"></polyline>
+                                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                </svg>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Typing indicator */}
+                  {isOtherUserTyping && (
+                    <div style={{ 
+                      display: 'flex',
+                      marginBottom: '20px'
+                    }}>
+                      <div style={{ 
+                        background: '#252525',
+                        color: '#fff',
+                        padding: '8px 16px',
+                        borderRadius: '18px',
+                        borderBottomLeftRadius: '4px',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span className="typing-dot" style={{ 
+                            width: '6px', 
+                            height: '6px', 
+                            borderRadius: '50%', 
+                            background: '#aaa',
+                            marginRight: '3px',
+                            animation: 'typingAnimation 1.5s infinite ease-in-out'
+                          }}></span>
+                          <span className="typing-dot" style={{ 
+                            width: '6px', 
+                            height: '6px', 
+                            borderRadius: '50%', 
+                            background: '#aaa',
+                            marginRight: '3px',
+                            animation: 'typingAnimation 1.5s infinite ease-in-out 0.3s'
+                          }}></span>
+                          <span className="typing-dot" style={{ 
+                            width: '6px', 
+                            height: '6px', 
+                            borderRadius: '50%', 
+                            background: '#aaa',
+                            animation: 'typingAnimation 1.5s infinite ease-in-out 0.6s'
+                          }}></span>
+                        </div>
+                        <span style={{ color: '#aaa', fontSize: '12px' }}>typing...</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div ref={messagesEndRef} />
                 </>
               )}
@@ -375,7 +658,7 @@ function ChatPage({ setPage }) {
                 <input
                   type="text"
                   value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
+                  onChange={handleTyping}
                   placeholder="Type your message..."
                   disabled={sending}
                   style={{ 
@@ -418,6 +701,15 @@ function ChatPage({ setPage }) {
           </div>
         )}
       </div>
+      
+      {/* CSS for typing animation */}
+      <style jsx>{`
+        @keyframes typingAnimation {
+          0% { opacity: 0.3; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-3px); }
+          100% { opacity: 0.3; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

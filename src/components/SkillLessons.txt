@@ -4,14 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 
 function SkillLessons({ setPage }) {
-  // Simple navigation function
-  const navigateTo = (page, params) => {
-    if (typeof setPage === 'function') {
-      setPage(page, params);
-    }
-  };
   const [activeTab, setActiveTab] = useState('upcoming');
-  const [historyLessons, setHistoryLessons] = useState([]);
   const { 
     upcomingLessons, 
     completedLessons, 
@@ -19,26 +12,9 @@ function SkillLessons({ setPage }) {
     startLesson,
     completeLesson,
     cancelLesson,
-    loading,
-    getAllUserLessons 
+    loading 
   } = useLesson();
   const { currentUser } = useAuth();
-  
-  // Fetch all user lessons for history
-  useEffect(() => {
-    async function fetchAllLessons() {
-      if (currentUser && activeTab === 'history') {
-        try {
-          const allLessons = await getAllUserLessons(currentUser.uid);
-          setHistoryLessons(allLessons);
-        } catch (error) {
-          console.error('Error fetching lesson history:', error);
-        }
-      }
-    }
-    
-    fetchAllLessons();
-  }, [currentUser, activeTab, getAllUserLessons]);
   const [feedbackData, setFeedbackData] = useState({ lessonId: null, rating: 5, feedback: '' });
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [cancelData, setCancelData] = useState({ lessonId: null, reason: '' });
@@ -46,14 +22,8 @@ function SkillLessons({ setPage }) {
   
   // Handle opening chat with partner
   const handleMessage = (partnerId) => {
-    navigateTo('chat', { recipientId: partnerId });
-  };
-  
-  // Handle viewing partner profile
-  const handleViewProfile = (partnerId) => {
-    if (!partnerId) return;
-    // Navigate to the user's profile page and pass the user ID
-    navigateTo('viewProfile', { userId: partnerId });
+    console.log(`Opening chat with partner ID: ${partnerId}`);
+    setPage('chat');
   };
   
   // Handle starting a lesson
@@ -119,35 +89,6 @@ function SkillLessons({ setPage }) {
   const getPartnerName = (lesson) => {
     return lesson.role === 'student' ? lesson.teacherName : lesson.studentName;
   };
-  
-  // Get status color based on lesson status
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'completed':
-        return '#4caf50';
-      case 'active':
-        return '#2196f3';
-      case 'scheduled':
-      case 'confirmed':
-        return '#ff9800';
-      case 'cancelled':
-        return '#f44336';
-      case 'open':
-        return '#9c27b0'; // Purple for open requests
-      case 'pending':
-        return '#ff9800'; // Orange for pending requests
-      default:
-        return '#9e9e9e';
-    }
-  };
-  
-  // Get display status text
-  const getStatusText = (lesson) => {
-    if (lesson.isRequest && lesson.status === 'open') {
-      return 'Waiting for tutor';
-    }
-    return lesson.displayStatus || lesson.status;
-  };
 
   return (
     <div className="fade-in" style={{ maxWidth: 1000, margin: '1rem auto' }}>
@@ -155,7 +96,7 @@ function SkillLessons({ setPage }) {
         <h2 style={{ color: 'var(--primary)', marginBottom: '20px' }}>My Lessons</h2>
         
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
           <button 
             onClick={() => setActiveTab('upcoming')} 
             style={{ 
@@ -166,7 +107,7 @@ function SkillLessons({ setPage }) {
               border: 'none',
               cursor: 'pointer',
               flex: 1,
-              minWidth: '150px'
+              maxWidth: '200px'
             }}
           >
             Upcoming Lessons
@@ -181,7 +122,7 @@ function SkillLessons({ setPage }) {
               border: 'none',
               cursor: 'pointer',
               flex: 1,
-              minWidth: '150px'
+              maxWidth: '200px'
             }}
           >
             Active Lessons
@@ -196,25 +137,10 @@ function SkillLessons({ setPage }) {
               border: 'none',
               cursor: 'pointer',
               flex: 1,
-              minWidth: '150px'
+              maxWidth: '200px'
             }}
           >
             Completed Lessons
-          </button>
-          <button 
-            onClick={() => setActiveTab('history')} 
-            style={{ 
-              background: activeTab === 'history' ? 'var(--primary)' : '#252525',
-              color: activeTab === 'history' ? 'black' : '#ddd',
-              padding: '10px 20px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              flex: 1,
-              minWidth: '150px'
-            }}
-          >
-            Your History
           </button>
         </div>
         
@@ -223,200 +149,6 @@ function SkillLessons({ setPage }) {
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <div className="loader"></div>
             <div style={{ marginTop: '20px', color: '#aaa' }}>Loading your lessons...</div>
-          </div>
-        )}
-        
-        {/* History Tab */}
-        {!loading && activeTab === 'history' && (
-          <div>
-            <div style={{ marginBottom: '20px', color: '#aaa', fontSize: '14px' }}>
-              {historyLessons.length} lesson {historyLessons.length === 1 ? 'record' : 'records'} in your history
-            </div>
-            
-            {historyLessons.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {historyLessons.map(lesson => {
-                  // Handle different types of lessons/requests
-                  const isRequest = lesson.isRequest;
-                  const isTeacher = lesson.role === 'teacher';
-                  const isRequester = lesson.role === 'requester';
-                  
-                  // Determine partner info based on role
-                  let partnerName, partnerId, roleText;
-                  
-                  if (isRequester && !lesson.tutorId) {
-                    // This is an open request without a tutor yet
-                    partnerName = 'No tutor yet';
-                    partnerId = null;
-                    roleText = 'Requested lesson';
-                  } else if (isTeacher) {
-                    partnerName = lesson.requesterName || 'Unknown User';
-                    partnerId = lesson.requesterId;
-                    roleText = 'Teaching';
-                  } else {
-                    partnerName = lesson.tutorName || 'Unknown User';
-                    partnerId = lesson.tutorId;
-                    roleText = 'Learning from';
-                  }
-                  
-                  // Determine border color based on role
-                  let borderColor;
-                  if (isRequester && !lesson.tutorId) {
-                    borderColor = '#9c27b0'; // Purple for open requests
-                  } else if (isTeacher) {
-                    borderColor = 'var(--primary)'; // Orange for teacher
-                  } else {
-                    borderColor = '#2196f3'; // Blue for student
-                  }
-                  
-                  return (
-                    <div 
-                      key={lesson.id} 
-                      style={{ 
-                        background: '#252525', 
-                        padding: '20px', 
-                        borderRadius: '8px',
-                        borderLeft: `4px solid ${borderColor}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                        <div>
-                          <h3 style={{ color: borderColor, margin: '0 0 5px 0', fontSize: '1.2rem' }}>
-                            {lesson.skillName || 'Unnamed Skill'}
-                          </h3>
-                          <div style={{ color: '#ddd', fontSize: '15px' }}>
-                            {roleText}: {partnerName}
-                          </div>
-                        </div>
-                        <div style={{ 
-                          background: getStatusColor(lesson.status),
-                          color: 'white',
-                          padding: '4px 10px',
-                          borderRadius: '20px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          textTransform: 'capitalize'
-                        }}>
-                          {getStatusText(lesson)}
-                        </div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '20px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                        <div style={{ flex: '1', minWidth: '120px' }}>
-                          <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '3px' }}>Created</div>
-                          <div style={{ fontSize: '14px' }}>{lesson.createdAt ? format(lesson.createdAt, 'MMM dd, yyyy') : 'N/A'}</div>
-                        </div>
-                        
-                        {lesson.acceptedAt && (
-                          <div style={{ flex: '1', minWidth: '120px' }}>
-                            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '3px' }}>Accepted</div>
-                            <div style={{ fontSize: '14px' }}>{format(lesson.acceptedAt, 'MMM dd, yyyy')}</div>
-                          </div>
-                        )}
-                        
-                        {lesson.completedAt && (
-                          <div style={{ flex: '1', minWidth: '120px' }}>
-                            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '3px' }}>Completed</div>
-                            <div style={{ fontSize: '14px' }}>{format(lesson.completedAt, 'MMM dd, yyyy')}</div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                        {/* Only show profile/message buttons if there's a partner */}
-                        {partnerId && (
-                          <>
-                            <button
-                              onClick={() => handleViewProfile(partnerId)}
-                              style={{
-                                background: '#333',
-                                border: 'none',
-                                color: '#ddd',
-                                padding: '8px 15px',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                              }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                              </svg>
-                              View Profile
-                            </button>
-                            
-                            <button
-                              onClick={() => handleMessage(partnerId)}
-                              style={{
-                                background: 'var(--primary)',
-                                border: 'none',
-                                color: 'black',
-                                padding: '8px 15px',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                              }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                              </svg>
-                              Message
-                            </button>
-                          </>
-                        )}
-                        
-                        {/* For open requests, show a cancel button */}
-                        {isRequester && !lesson.tutorId && (
-                          <button
-                            onClick={() => openCancelModal(lesson.id)}
-                            style={{
-                              background: '#f44336',
-                              border: 'none',
-                              color: 'white',
-                              padding: '8px 15px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '5px'
-                            }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="18" y1="6" x2="6" y2="18"></line>
-                              <line x1="6" y1="6" x2="18" y2="18"></line>
-                            </svg>
-                            Cancel Request
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px', background: '#252525', borderRadius: '8px' }}>
-                <div style={{ fontSize: '60px', marginBottom: '20px' }}>📋</div>
-                <h3 style={{ marginBottom: '10px', color: 'var(--primary)' }}>No History Found</h3>
-                <p style={{ color: '#aaa', marginBottom: '20px' }}>You haven't requested or accepted any lessons yet.</p>
-                <button 
-                  onClick={() => setActiveTab('upcoming')}
-                  style={{ 
-                    background: 'var(--primary)', 
-                    color: 'black', 
-                    border: 'none', 
-                    padding: '10px 20px', 
-                    borderRadius: '4px', 
-                    cursor: 'pointer' 
-                  }}
-                >
-                  View Upcoming Lessons
-                </button>
-              </div>
-            )}
           </div>
         )}
         
@@ -494,17 +226,17 @@ function SkillLessons({ setPage }) {
                     
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button 
-                        onClick={() => handleMessage(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                        onClick={() => handleMessage(lesson.partnerId || lesson.id)}
                         style={{ 
-                          background: '#4a5568', 
-                          color: 'white', 
-                          border: 'none', 
-                          padding: '8px 15px', 
+                          background: '#252525', 
+                          color: '#ddd',
+                          border: '1px solid #444',
+                          padding: '8px 15px',
                           borderRadius: '5px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
+                          gap: '5px',
                           fontSize: '14px'
                         }}
                       >
@@ -512,28 +244,6 @@ function SkillLessons({ setPage }) {
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                         Message
-                      </button>
-                      
-                      <button 
-                        onClick={() => handleViewProfile(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
-                        style={{ 
-                          background: 'transparent', 
-                          color: '#ddd', 
-                          border: '1px solid #444', 
-                          padding: '8px 15px', 
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '14px'
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        View Profile
                       </button>
                       <button 
                         onClick={() => handleStart(lesson.id)}
@@ -589,8 +299,7 @@ function SkillLessons({ setPage }) {
             )}
           </div>
         )}
-
-                
+        
         {/* Active Lessons Tab */}
         {!loading && activeTab === 'active' && (
           <div>
@@ -663,17 +372,17 @@ function SkillLessons({ setPage }) {
                     
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button 
-                        onClick={() => handleMessage(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                        onClick={() => handleMessage(lesson.partnerId || lesson.id)}
                         style={{ 
-                          background: '#4a5568', 
-                          color: 'white', 
-                          border: 'none', 
-                          padding: '8px 15px', 
+                          background: '#252525', 
+                          color: '#ddd',
+                          border: '1px solid #444',
+                          padding: '8px 15px',
                           borderRadius: '5px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
+                          gap: '5px',
                           fontSize: '14px'
                         }}
                       >
@@ -681,27 +390,6 @@ function SkillLessons({ setPage }) {
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                         Message
-                      </button>
-                      <button 
-                        onClick={() => handleViewProfile(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
-                        style={{ 
-                          background: 'transparent', 
-                          color: '#ddd', 
-                          border: '1px solid #444', 
-                          padding: '8px 15px', 
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '14px'
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        View Profile
                       </button>
                       <button 
                         onClick={() => openFeedbackModal(lesson.id)}
@@ -888,8 +576,7 @@ function SkillLessons({ setPage }) {
             )}
           </div>
         )}
-
-                {/* How Lessons Work Section */}
+        {/* How Lessons Work Section */}
         <div className="card" style={{ padding: '30px' }}>
           <h3 style={{ color: 'var(--primary)', marginBottom: '20px' }}>How Lessons Work</h3>
           

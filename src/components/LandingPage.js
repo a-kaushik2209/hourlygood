@@ -1,6 +1,8 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 function LandingPage({ setPage, profile, showLogin }) {
+  const { currentUser } = useAuth();
   // Helper function for section animations
   const sectionStyle = (delay) => ({
     opacity: 0,
@@ -57,38 +59,94 @@ function LandingPage({ setPage, profile, showLogin }) {
           </p>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '15px', opacity: 0, animation: 'slideUpFade 1s ease-out 0.6s forwards' }}>
-            <button 
-              onClick={() => setPage('request')} 
-              style={{ 
-                fontSize: 17,
-                fontWeight: 700,
-                padding: '12px 25px',
-                minWidth: '200px',
-                transition: 'all 0.3s ease',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-              <span style={{ position: 'relative', zIndex: 2 }}>
-              Request a Lesson
-              </span>
-            </button>
-            
-            <button 
-              onClick={() => setPage('marketplace')}
-              style={{ 
-                fontSize: 17,
-                fontWeight: 700,
-                background: 'rgba(255,255,255,0.15)',
-                padding: '12px 25px',
-                minWidth: '200px',
-                transition: 'all 0.3s ease',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-              <span style={{ position: 'relative', zIndex: 2 }}>
-              Browse Skills
-              </span>
-            </button>
+            {!currentUser ? (
+              <>
+                <button 
+                  onClick={() => setPage('login')} 
+                  style={{ 
+                    fontSize: 17,
+                    fontWeight: 700,
+                    padding: '12px 25px',
+                    minWidth: '200px',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                  <span style={{ position: 'relative', zIndex: 2 }}>
+                  Create an Account
+                  </span>
+                </button>
+                
+                <button 
+                  onClick={() => setPage('marketplace')}
+                  style={{ 
+                    fontSize: 17,
+                    fontWeight: 700,
+                    background: 'rgba(255,255,255,0.15)',
+                    padding: '12px 25px',
+                    minWidth: '200px',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                  <span style={{ position: 'relative', zIndex: 2 }}>
+                  Browse Skills
+                  </span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setPage('request')} 
+                  style={{ 
+                    fontSize: 17,
+                    fontWeight: 700,
+                    padding: '12px 25px',
+                    minWidth: '200px',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                  <span style={{ position: 'relative', zIndex: 2 }}>
+                  Request a Lesson
+                  </span>
+                </button>
+                
+                <button 
+                  onClick={() => setPage('marketplace')}
+                  style={{ 
+                    fontSize: 17,
+                    fontWeight: 700,
+                    background: 'rgba(255,255,255,0.15)',
+                    padding: '12px 25px',
+                    minWidth: '200px',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                  <span style={{ position: 'relative', zIndex: 2 }}>
+                  Browse Skills
+                  </span>
+                </button>
+                
+                <button 
+                  onClick={() => setPage('lessons')}
+                  style={{ 
+                    fontSize: 17,
+                    fontWeight: 700,
+                    background: 'rgba(255,255,255,0.15)',
+                    padding: '12px 25px',
+                    minWidth: '200px',
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                  <span style={{ position: 'relative', zIndex: 2 }}>
+                  My Lessons
+                  </span>
+                </button>
+              </>
+            )}
           </div>
         </div>
         

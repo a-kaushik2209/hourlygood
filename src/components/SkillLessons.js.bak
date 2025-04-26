@@ -146,7 +146,38 @@ function SkillLessons({ setPage }) {
     if (lesson.isRequest && lesson.status === 'open') {
       return 'Waiting for tutor';
     }
+    if (lesson.isSkillRequest && lesson.status === 'accepted') {
+      return 'Accepted';
+    }
     return lesson.displayStatus || lesson.status;
+  };
+  
+  // Get lesson details based on type
+  const getLessonDetails = (lesson) => {
+    // For skill requests
+    if (lesson.isSkillRequest || lesson.isRequest) {
+      const isTeacher = lesson.tutorId === currentUser?.uid;
+      const isStudent = lesson.requesterId === currentUser?.uid;
+      
+      return {
+        skillName: lesson.skillName || 'Unnamed Skill',
+        partnerName: isTeacher ? lesson.requesterName : lesson.tutorName,
+        partnerId: isTeacher ? lesson.requesterId : lesson.tutorId,
+        role: isTeacher ? 'teacher' : 'student',
+        status: lesson.status,
+        displayStatus: getStatusText(lesson)
+      };
+    }
+    
+    // For regular lessons
+    return {
+      skillName: lesson.skillName || 'Unnamed Skill',
+      partnerName: getPartnerName(lesson),
+      partnerId: lesson.role === 'student' ? lesson.teacherId : lesson.studentId,
+      role: lesson.role,
+      status: lesson.status,
+      displayStatus: lesson.displayStatus || lesson.status
+    };
   };
 
   return (
@@ -429,37 +460,39 @@ function SkillLessons({ setPage }) {
             
             {upcomingLessons.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {upcomingLessons.map(lesson => (
-                  <div 
-                    key={lesson.id} 
-                    style={{ 
-                      background: '#252525', 
-                      padding: '20px', 
-                      borderRadius: '8px',
-                      borderLeft: lesson.role === 'teacher' ? '4px solid var(--primary)' : '4px solid #9c27b0'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                      <div>
-                        <h3 style={{ color: lesson.role === 'teacher' ? 'var(--primary)' : '#9c27b0', margin: '0 0 5px 0', fontSize: '1.2rem' }}>
-                          {lesson.skillName || 'Unnamed Skill'}
-                        </h3>
-                        <div style={{ color: '#ddd', fontSize: '15px' }}>
-                          {lesson.role === 'teacher' ? 'Teaching' : 'Learning from'}: {getPartnerName(lesson)}
+                {upcomingLessons.map(lesson => {
+                  const lessonDetails = getLessonDetails(lesson);
+                  return (
+                    <div 
+                      key={lesson.id} 
+                      style={{ 
+                        background: '#252525', 
+                        padding: '20px', 
+                        borderRadius: '8px',
+                        borderLeft: `4px solid ${lessonDetails.role === 'student' ? '#2196f3' : 'var(--primary)'}`
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                        <div>
+                          <h3 style={{ color: lessonDetails.role === 'student' ? '#2196f3' : 'var(--primary)', margin: '0 0 5px 0', fontSize: '1.2rem' }}>
+                            {lessonDetails.skillName}
+                          </h3>
+                          <div style={{ color: '#ddd', fontSize: '15px' }}>
+                            {lessonDetails.role === 'student' ? 'Learning from' : 'Teaching'}: {lessonDetails.partnerName || 'Unknown User'}
+                          </div>
+                        </div>
+                        <div style={{ 
+                          background: getStatusColor(lessonDetails.status),
+                          color: 'white',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          textTransform: 'capitalize'
+                        }}>
+                          {lessonDetails.displayStatus}
                         </div>
                       </div>
-                      <div style={{ 
-                        background: lesson.status === 'confirmed' ? '#4caf50' : '#ff9800',
-                        color: 'white',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        textTransform: 'capitalize'
-                      }}>
-                        {lesson.status}
-                      </div>
-                    </div>
                     
                     <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
                       <div style={{ 
@@ -494,60 +527,39 @@ function SkillLessons({ setPage }) {
                     
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button 
-                        onClick={() => handleMessage(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                        onClick={() => handleMessage(lessonDetails.partnerId)}
                         style={{ 
-                          background: '#4a5568', 
-                          color: 'white', 
-                          border: 'none', 
-                          padding: '8px 15px', 
-                          borderRadius: '5px',
+                          background: 'transparent', 
+                          border: '1px solid #444', 
+                          color: '#ddd', 
+                          padding: '8px 12px', 
+                          borderRadius: '4px', 
+                          fontSize: '14px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '14px'
+                          gap: '5px'
                         }}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                         Message
                       </button>
                       
                       <button 
-                        onClick={() => handleViewProfile(lesson.role === 'teacher' ? lesson.studentId : lesson.teacherId)}
+                        onClick={() => handleViewProfile(lessonDetails.partnerId)}
                         style={{ 
                           background: 'transparent', 
-                          color: '#ddd', 
                           border: '1px solid #444', 
-                          padding: '8px 15px', 
-                          borderRadius: '5px',
+                          color: '#ddd', 
+                          padding: '8px 12px', 
+                          borderRadius: '4px', 
+                          fontSize: '14px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '14px'
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        View Profile
-                      </button>
-                      <button 
-                        onClick={() => handleStart(lesson.id)}
-                        style={{ 
-                          background: '#2196f3', 
-                          color: 'white',
-                          border: 'none',
-                          padding: '8px 15px',
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '14px'
+                          gap: '5px'
                         }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -566,8 +578,7 @@ function SkillLessons({ setPage }) {
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '14px'
+                          gap: '5px'
                         }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -578,7 +589,7 @@ function SkillLessons({ setPage }) {
                       </button>
                     </div>
                   </div>
-                ))}
+                })}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '30px', color: '#aaa' }}>
