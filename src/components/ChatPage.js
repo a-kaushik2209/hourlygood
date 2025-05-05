@@ -145,17 +145,15 @@ function ChatPage({ setPage, pageParams }) {
   
   const handleSelectChat = (chatId) => {
     setActiveChat(chatId);
-    // Mark as read when selected
     markChatAsRead(chatId);
   };
   
-  // Handle viewing a user's profile
+
   const handleViewProfile = (userId) => {
     if (!userId) return;
     setPage('viewProfile', { userId });
   };
 
-  // Cleanup typing timeout on unmount
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
@@ -164,31 +162,25 @@ function ChatPage({ setPage, pageParams }) {
     };
   }, []);
   
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!currentUser && !chatLoading) {
       setPage('login');
     }
   }, [currentUser, chatLoading, setPage]);
 
-  // Check if someone is typing in the current chat
   const isOtherUserTyping = currentChat && Object.keys(typingUsers).length > 0;
 
-  // Handle creating a new chat if needed or selecting an existing one
   useEffect(() => {
     if (!pageParams || !currentUser) return;
     
     const initializeChat = async () => {
       try {
-        // If chatId is directly provided, use it
         if (pageParams.chatId) {
           handleSelectChat(pageParams.chatId);
           return;
         }
         
-        // If recipientId is provided, find or create chat
         if (pageParams.recipientId) {
-          // First check if chat already exists
           const existingChat = chats.find(c => 
             c.participants.includes(pageParams.recipientId) && c.participants.includes(currentUser.uid)
           );
@@ -198,9 +190,7 @@ function ChatPage({ setPage, pageParams }) {
             return;
           }
           
-          // If no existing chat, create a new one
           if (chats.length === 0 || !existingChat) {
-            // Create new chat with this recipient
             const newChatId = await createChat(pageParams.recipientId);
             handleSelectChat(newChatId);
           }
@@ -214,7 +204,6 @@ function ChatPage({ setPage, pageParams }) {
     initializeChat();
   }, [pageParams, chats, currentUser, createChat]);
   
-  // Scroll to bottom when messages change or when active chat changes
   useEffect(() => {
     if (messagesEndRef.current) {
       setTimeout(() => {
